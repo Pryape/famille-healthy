@@ -827,6 +827,15 @@ function backToConvOptions(){
   document.getElementById("step-convert").style.display="block";
 }
 
+function portionsJson(){
+  var portions = {};
+  var mults = [1.35, 1.0, 1.1, 0.82, 0.62];
+  getFamille().forEach(function(m, i){
+    portions[m.name] = {kcal:0, prot:0, mult: mults[i] || 0.8};
+  });
+  return '"portions":' + JSON.stringify(portions);
+}
+
 function buildConvPrompt(){
   var d = originalAnalysis;
   var season = curSeason();
@@ -869,7 +878,7 @@ function buildConvPrompt(){
     '"conversion_type":"'+convOptions.type+'",'+ 
     '"conversion_mods":'+JSON.stringify(convOptions.mods)+'},'+
     '"ingredients":[{"original":"","orig_kcal_total":0,"atp_issue":null,"sub":null,"sub_qty":0,"sub_unit":"","sub_kcal_total":0,"reason":null,"price":0,"drive_search":"","supprime":false}],'+
-    '"portions":{"Pere":{"kcal":0,"prot":0,"mult":1.35},"Mere":{"kcal":0,"prot":0,"mult":1.0},"Ado 13":{"kcal":0,"prot":0,"mult":1.1},"Enfant 10":{"kcal":0,"prot":0,"mult":0.82},"Petit 6":{"kcal":0,"prot":0,"mult":0.62}},'+
+    portionsJson()+','+
     '"kcal_par_personne_avant":'+(d.kcal_par_personne||0)+',"kcal_par_personne_apres":0,'+
     '"atp_tips":["",""],"recomp_note":"","total_price":0,"tags_auto":[""],"ingredients_principaux":[""]}';
 }
@@ -1003,8 +1012,12 @@ function renderConvertedResult(d){
   // Portions
   html += '<div class="card">'+
     '<div style="font-size:12px;font-weight:500;color:var(--tx2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:9px">Portions famille</div>';
-  FAM.forEach(function(m){
-    var p = (d.portions||{})[m.name]||{kcal:0,prot:0};
+  var portionKeys = Object.keys(d.portions||{});
+  FAM.forEach(function(m, idx){
+    // Chercher la portion par nom exact, ou par index si le nom a change
+    var p = (d.portions||{})[m.name];
+    if(!p && portionKeys[idx]) p = (d.portions||{})[portionKeys[idx]];
+    if(!p) p = {kcal:0, prot:0};
     var ppct = Math.round((p.kcal||0)/tkcal(m)*100);
     var col = m.goal==="recomp"?"#7C3AED":"var(--gr)";
     html += '<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--bd)">'+
@@ -1063,8 +1076,11 @@ function renderKcal(){
   '</div>';
 
   html += '<div class="stitle">Par membre</div>';
-  FAM.forEach(function(m){
-    var p = (data.portions||{})[m.name]||{kcal:0,prot:0};
+  var portionKeys2 = Object.keys((data.portions)||{});
+  FAM.forEach(function(m, idx){
+    var p = (data.portions||{})[m.name];
+    if(!p && portionKeys2[idx]) p = (data.portions||{})[portionKeys2[idx]];
+    if(!p) p = {kcal:0, prot:0};
     var ppct = Math.round((p.kcal||0)/tkcal(m)*100);
     var col = m.goal==="recomp"?"#7C3AED":"var(--gr)";
     html += '<div class="card" style="padding:11px;margin-bottom:8px;display:flex;align-items:center;gap:9px">'+
