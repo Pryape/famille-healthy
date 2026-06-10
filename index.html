@@ -603,8 +603,9 @@ function confirmJson(){
 }
 
 function hideAllSteps(){
-  ["step-url","step-waiting","step-original","step-convert","step-waiting-conv","step-result"].forEach(function(id){
-    document.getElementById(id).style.display = "none";
+  ["step-url","step-waiting","step-loading","step-original","step-convert","step-waiting-conv","step-result"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = "none";
   });
 }
 function resetToUrl(){
