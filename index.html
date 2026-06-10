@@ -190,6 +190,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);font-
       </div>
     </div>
 
+    <!-- LOADING -->
+    <div id="step-loading" style="display:none">
+      <div class="card" style="text-align:center;padding:40px 20px">
+        <div class="spin" style="margin:0 auto 16px"></div>
+        <div id="loadingMsg" style="font-size:14px;color:var(--tx2)">Analyse en cours...</div>
+        <div style="font-size:12px;color:var(--tx3);margin-top:8px">Claude analyse la recette, 10-20 secondes...</div>
+      </div>
+    </div>
+
     <!-- COMMENT UTILISER (s'affiche quand on attend Claude) -->
     <div id="step-waiting" style="display:none">
       <div class="card" style="border:1.5px solid var(--gr)">
@@ -407,13 +416,16 @@ var watchTimer = null;
   var d = new Date(); d.setDate(d.getDate()+1);
   var md = document.getElementById("mealDate");
   if(md) md.value = d.toISOString().split("T")[0];
+  // Restaurer session Google si token en memoire
+  var savedToken = sessionStorage.getItem("fh_google_token");
+  if(savedToken){ _googleToken = savedToken; }
+  // Verifier redirect OAuth Google
+  checkOAuthRedirect();
   renderHistory();
+  renderDbStatus();
   document.getElementById("recipeModal").addEventListener("click", function(e){if(e.target.id==="recipeModal")closeModal("recipeModal")});
   document.getElementById("driveModal").addEventListener("click", function(e){if(e.target.id==="driveModal")closeModal("driveModal")});
-  // Watch claude-output div for automatic JSON injection
   startWatcher();
-  // Init DB status
-  renderDbStatus();
 })();
 
 // ==== AUTO WATCHER (Claude in Chrome writes to #claude-output) ====
@@ -519,19 +531,41 @@ function buildAnalyzePrompt(url){
     '"kcal_total_recette":0,"kcal_par_personne":0,"tags_auto":[""],"ingredients_principaux":[""]}';
 }
 
+// Appel API Anthropic via proxy Netlify (cle securisee cote serveur)
+function callAnthropicProxy(messages){
+  return fetch("/.netlify/functions/anthropic", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: messages })
+  }).then(function(resp){
+    return resp.json().then(function(data){
+      if(!resp.ok) throw new Error(data.error || "Erreur API");
+      return data;
+    });
+  });
+}
+
 function startAnalysis(){
   var url = document.getElementById("recipeUrl").value.trim();
   if(!url){toast("Collez l'URL d'une recette");return}
-  var prompt = buildAnalyzePrompt(url);
-  // Preparer la zone de reception
-  document.getElementById("jsonPaste").value = "";
-  document.getElementById("jsonStatus").textContent = "";
-  document.getElementById("jsonConfirmArea").style.display = "none";
-  pendingJSON = null;
+  var btn = document.getElementById("analyzeBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "Analyse..."; }
+  document.getElementById("loadingMsg").textContent = "Analyse de la recette en cours...";
   hideAllSteps();
-  document.getElementById("step-waiting").style.display = "block";
-  // Copier le prompt et ouvrir Claude
-  copyText(prompt, "Prompt copie ! Collez-le dans ce chat Claude et revenez coller le JSON ici.");
+  document.getElementById("step-loading").style.display = "block";
+  callAnthropicProxy([{role:"user",content:buildAnalyzePrompt(url)}]).then(function(result){
+    hideAllSteps();
+    document.getElementById("step-url").style.display = "block";
+    originalAnalysis = result;
+    convertedAnalysis = null;
+    renderOriginalCard(originalAnalysis);
+  }).catch(function(e){
+    hideAllSteps();
+    document.getElementById("step-url").style.display = "block";
+    toast("Erreur: " + e.message);
+  }).finally(function(){
+    if(btn){ btn.disabled = false; btn.textContent = "Analyser"; }
+  });
 }
 
 function openClaudeWithPrompt(){
@@ -751,7 +785,7 @@ function showConvertPanel(){
     '<div id="convSummary" style="font-size:13px;color:var(--tx2);margin-bottom:13px"></div>'+
     '<div class="btn-row">'+
       '<button class="btn btns btnsm" onclick="backToOriginal()">Retour</button>'+
-      '<button class="btn btnp btnsm" style="flex:1" onclick="startConversion()">Lancer la conversion</button>'+
+      '<button class="btn btnp btnsm" style="flex:1" id="convBtn" onclick="startConversion()">Lancer la conversion</button>'+
     '</div>'+
   '</div>';
   hideAllSteps();
@@ -837,15 +871,24 @@ function buildConvPrompt(){
 }
 
 function startConversion(){
-  var prompt = buildConvPrompt();
-  document.getElementById("convPromptBox").textContent = prompt;
-  document.getElementById("jsonPasteConv").value = "";
-  document.getElementById("jsonStatusConv").textContent = "";
-  document.getElementById("jsonConfirmConvArea").style.display = "none";
-  pendingConvJSON = null;
+  var btn = document.getElementById("convBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "Conversion..."; }
+  document.getElementById("loadingMsg").textContent = "Conversion de la recette en cours...";
   hideAllSteps();
-  document.getElementById("step-waiting-conv").style.display = "block";
-  copyText(prompt, "Prompt copie ! Collez-le dans ce chat Claude et revenez coller le JSON ici.");
+  document.getElementById("step-loading").style.display = "block";
+  callAnthropicProxy([{role:"user",content:buildConvPrompt()}]).then(function(result){
+    hideAllSteps();
+    document.getElementById("step-url").style.display = "block";
+    convertedAnalysis = result;
+    renderConvertedResult(convertedAnalysis);
+    renderKcal();
+  }).catch(function(e){
+    hideAllSteps();
+    document.getElementById("step-convert").style.display = "block";
+    toast("Erreur: " + e.message);
+  }).finally(function(){
+    if(btn){ btn.disabled = false; btn.textContent = "Lancer la conversion"; }
+  });
 }
 function openClaudeConv(){
   copyText(document.getElementById("convPromptBox").textContent, "Prompt copie ! Collez-le dans ce chat Claude.");
@@ -1152,10 +1195,112 @@ function pblock(title,color,text,url){
 function escHtml(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
 function copyP(id){copyText(document.getElementById(id).textContent,"Copie !")}
 
-// ==== STOCKAGE localStorage + export/import fichier ====
+// ==== STOCKAGE - Google Drive via Netlify proxy ====
 var _recipes = null;
 var _famille = null;
+var _googleToken = null;
+var _saveTimer = null;
 
+// --- Auth Google (OAuth implicit flow) ---
+var GOOGLE_CLIENT_ID = localStorage.getItem("fh_google_client_id") || "";
+var GOOGLE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+
+function setGoogleClientId(id){
+  GOOGLE_CLIENT_ID = id;
+  localStorage.setItem("fh_google_client_id", id);
+}
+
+function connectGoogle(){
+  if(!GOOGLE_CLIENT_ID){
+    var id = prompt("Entrez votre Google Client ID (format: xxxx.apps.googleusercontent.com)");
+    if(!id) return;
+    setGoogleClientId(id.trim());
+  }
+  var redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
+  var scope = encodeURIComponent(GOOGLE_SCOPE);
+  var url = "https://accounts.google.com/o/oauth2/v2/auth" +
+    "?client_id=" + GOOGLE_CLIENT_ID +
+    "&redirect_uri=" + redirectUri +
+    "&response_type=token" +
+    "&scope=" + scope +
+    "&prompt=consent";
+  window.location.href = url;
+}
+
+function checkOAuthRedirect(){
+  var hash = window.location.hash;
+  if(hash && hash.includes("access_token")){
+    var params = new URLSearchParams(hash.substring(1));
+    var token = params.get("access_token");
+    if(token){
+      _googleToken = token;
+      sessionStorage.setItem("fh_google_token", token);
+      history.replaceState(null, "", window.location.pathname);
+      toast("Google Drive connecte !");
+      renderDbStatus();
+      loadFromDrive();
+    }
+  }
+}
+
+function disconnectGoogle(){
+  _googleToken = null;
+  sessionStorage.removeItem("fh_google_token");
+  renderDbStatus();
+  toast("Deconnecte de Google Drive");
+}
+
+// --- Lecture / ecriture Drive via proxy Netlify ---
+async function loadFromDrive(){
+  if(!_googleToken) return;
+  try{
+    var resp = await fetch("/.netlify/functions/drive", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + _googleToken },
+      body: JSON.stringify({ action: "read" })
+    });
+    if(resp.status === 401){ _googleToken = null; sessionStorage.removeItem("fh_google_token"); renderDbStatus(); return; }
+    var data = await resp.json();
+    if(data.error){ toast("Erreur Drive: " + data.error); return; }
+    _recipes = Array.isArray(data.recipes) ? data.recipes : [];
+    _famille = Array.isArray(data.famille) && data.famille.length > 0 ? data.famille : DEFAULT_FAM.slice();
+    FAM = _famille;
+    localStorage.setItem("fh_recipes", JSON.stringify(_recipes));
+    localStorage.setItem("fh_famille", JSON.stringify(_famille));
+    renderFamilyCards();
+    renderHistory();
+    renderDbStatus();
+    toast("Donnees chargees depuis Google Drive !");
+  }catch(e){
+    toast("Erreur chargement Drive: " + e.message);
+  }
+}
+
+async function saveToDrive(){
+  if(!_googleToken) return;
+  try{
+    var resp = await fetch("/.netlify/functions/drive", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + _googleToken },
+      body: JSON.stringify({
+        action: "write",
+        data: { recipes: _recipes||[], famille: _famille||DEFAULT_FAM, updatedAt: new Date().toISOString(), version: 2 }
+      })
+    });
+    if(!resp.ok){ var e = await resp.json(); toast("Erreur sauvegarde: " + (e.error||"")); }
+  }catch(e){
+    toast("Erreur sauvegarde Drive: " + e.message);
+  }
+}
+
+function scheduleSave(){
+  if(_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(function(){
+    if(_googleToken) saveToDrive();
+  }, 1500); // Debounce 1.5s
+}
+
+// --- API publique ---
 function getRecipes(){
   if(_recipes !== null && Array.isArray(_recipes)) return _recipes;
   try{var s=JSON.parse(localStorage.getItem("fh_recipes")||"[]");return Array.isArray(s)?s:[]}
@@ -1169,79 +1314,45 @@ function getFamille(){
 function saveRecipes(r){
   _recipes = r;
   localStorage.setItem("fh_recipes", JSON.stringify(r));
-  autoExport();
+  scheduleSave();
 }
 function saveFamille(f){
   _famille = f;
   FAM = f;
   localStorage.setItem("fh_famille", JSON.stringify(f));
-  autoExport();
+  scheduleSave();
   renderFamilyCards();
 }
 
-// Export automatique : met a jour le fichier si handle disponible, sinon localStorage suffit
-var _fileHandle = null;
-
-async function autoExport(){
-  if(!_fileHandle) return;
-  try{
-    var writable = await _fileHandle.createWritable();
-    await writable.write(JSON.stringify({
-      recipes: _recipes||[],
-      famille: _famille||DEFAULT_FAM,
-      updatedAt: new Date().toISOString(),
-      version: 2
-    }, null, 2));
-    await writable.close();
-  }catch(e){
-    // Silent fail - localStorage reste la source de verite
-    _fileHandle = null;
-    renderDbStatus();
-  }
+// Export / Import manuel (fallback)
+function exportHistory(){
+  var blob = new Blob([JSON.stringify({recipes:getRecipes(),famille:getFamille(),exportedAt:new Date().toISOString()},null,2)],{type:"application/json"});
+  var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "famille-healthy-data.json"; a.click();
+  toast("Export telecharge");
 }
-
-async function loadFromFile(){
-  if(!_fileHandle) return;
-  try{
-    var file = await _fileHandle.getFile();
-    var text = await file.text();
-    var data = JSON.parse(text);
-    _recipes = Array.isArray(data.recipes) ? data.recipes : [];
-    _famille = Array.isArray(data.famille) && data.famille.length > 0 ? data.famille : DEFAULT_FAM.slice();
-    FAM = _famille;
-    localStorage.setItem("fh_recipes", JSON.stringify(_recipes));
-    localStorage.setItem("fh_famille", JSON.stringify(_famille));
-    renderFamilyCards();
-  }catch(e){
-    toast("Erreur lecture fichier: "+e.message);
-  }
-}
-
-async function pickAndLoadFile(){
-  if(!window.showOpenFilePicker){
-    toast("Utilisez le bouton Importer JSON");
-    return;
-  }
-  try{
-    var handles = await window.showOpenFilePicker({
-      types:[{description:"Donnees",accept:{"application/json":[".json"]}}],
-      multiple:false
-    });
-    _fileHandle = handles[0];
-    await loadFromFile();
-    toast("Fichier ouvert et synchronise !");
-    renderDbStatus();
-    renderHistory();
-  }catch(e){
-    if(e.name !== "AbortError") toast("Erreur: "+e.message);
-  }
-}
-
-async function syncFile(){
-  if(!_fileHandle){ toast("Aucun fichier lie - utilisez Exporter/Importer"); return; }
-  await loadFromFile();
-  renderHistory();
-  toast("Synchronise !");
+function importHistory(e){
+  var file = e.target.files[0]; if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      var imp = JSON.parse(ev.target.result);
+      var existing = getRecipes();
+      var existIds = new Set(existing.map(function(r){return r.id}));
+      var news = (imp.recipes||[]).filter(function(r){return !existIds.has(r.id)});
+      _recipes = existing.concat(news);
+      if(Array.isArray(imp.famille) && imp.famille.length > 0){
+        _famille = imp.famille; FAM = _famille;
+        localStorage.setItem("fh_famille", JSON.stringify(_famille));
+        renderFamilyCards();
+      }
+      localStorage.setItem("fh_recipes", JSON.stringify(_recipes));
+      scheduleSave();
+      renderHistory(); renderDbStatus();
+      toast(news.length + " recette(s) importee(s)");
+    }catch(err){toast("Erreur import")}
+  };
+  reader.readAsText(file);
+  e.target.value = "";
 }
 
 // ==== HISTORIQUE ====
@@ -1340,25 +1451,38 @@ function renderDbStatus(){
   var el = document.getElementById("dbStatus");
   if(!el) return;
   var count = getRecipes().length;
-  el.innerHTML =
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
-      '<div style="width:8px;height:8px;border-radius:50%;background:var(--gr);flex-shrink:0"></div>'+
-      '<div style="font-size:13px;font-weight:500;color:var(--gr)">'+count+' recette(s) enregistree(s)</div>'+
-    '</div>'+
-    '<div style="font-size:12px;color:var(--tx2);margin-bottom:12px;line-height:1.6">'+
-      'Les donnees sont sauvegardees dans votre navigateur (localStorage). '+
-      'Exportez le fichier JSON et deposez-le dans un dossier Google Drive partage '+
-      'pour synchroniser avec votre famille.'+
-    '</div>'+
-    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
-      '<button class="btn btnp btnsm" onclick="exportHistory()">Exporter JSON</button>'+
-      '<button class="btn btno btnsm" onclick="triggerImport()">Importer JSON</button>'+
-      (window.showOpenFilePicker ?
-        '<button class="btn btns btnsm" onclick="pickAndLoadFile()">Lier un fichier</button>' : '')+
-    '</div>'+
-    '<div style="font-size:11px;color:var(--tx3);margin-top:8px">'+
-      'Conseil : exportez apres chaque session, partagez le fichier JSON via Google Drive.'+
-    '</div>';
+  if(_googleToken){
+    el.innerHTML =
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
+        '<div style="width:8px;height:8px;border-radius:50%;background:var(--gr);flex-shrink:0"></div>'+
+        '<div>'+
+          '<div style="font-size:13px;font-weight:500;color:var(--gr)">Google Drive connecte</div>'+
+          '<div style="font-size:12px;color:var(--tx2)">Sauvegarde automatique - '+count+' recette(s)</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button class="btn btnp btnsm" onclick="loadFromDrive()">Synchroniser</button>'+
+        '<button class="btn btns btnsm" onclick="exportHistory()">Exporter copie</button>'+
+        '<button class="btn btns btnsm" style="color:var(--rd)" onclick="disconnectGoogle()">Deconnecter</button>'+
+      '</div>';
+  } else {
+    el.innerHTML =
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
+        '<div style="width:8px;height:8px;border-radius:50%;background:var(--am);flex-shrink:0"></div>'+
+        '<div>'+
+          '<div style="font-size:13px;font-weight:500;color:var(--am)">Google Drive non connecte</div>'+
+          '<div style="font-size:12px;color:var(--tx2)">'+count+' recette(s) en local</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-size:12px;color:var(--tx2);margin-bottom:12px;line-height:1.6">'+
+        'Connectez Google Drive pour sauvegarder et synchroniser automatiquement avec votre famille.'+
+      '</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button class="btn btnp btnsm" onclick="connectGoogle()">Connecter Google Drive</button>'+
+        '<button class="btn btns btnsm" onclick="exportHistory()">Exporter JSON</button>'+
+        '<button class="btn btns btnsm" onclick="triggerImport()">Importer JSON</button>'+
+      '</div>';
+  }
 }
 
 function triggerImport(){
