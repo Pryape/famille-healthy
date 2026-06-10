@@ -333,7 +333,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);font-
   </div>
   <div class="ct">
     <div id="familleList"></div>
-    <button class="btn btnp" onclick="addMember()" style="margin-top:4px">+ Ajouter un membre</button>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btnp" style="flex:1" onclick="addMember()">+ Ajouter un membre</button>
+      <button class="btn btno" onclick="forceSaveDrive()">Sauvegarder sur Drive</button>
+    </div>
   </div>
 </div>
 
@@ -1294,10 +1297,19 @@ async function saveToDrive(){
 }
 
 function scheduleSave(){
+  // Restaurer le token depuis sessionStorage si necessaire
+  if(!_googleToken){
+    var t = sessionStorage.getItem("fh_google_token");
+    if(t) _googleToken = t;
+  }
   if(_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(function(){
+    if(!_googleToken){
+      var t = sessionStorage.getItem("fh_google_token");
+      if(t) _googleToken = t;
+    }
     if(_googleToken) saveToDrive();
-  }, 1500); // Debounce 1.5s
+  }, 1500);
 }
 
 // --- API publique ---
@@ -1320,6 +1332,11 @@ function saveFamille(f){
   _famille = f;
   FAM = f;
   localStorage.setItem("fh_famille", JSON.stringify(f));
+  // Restaurer token si besoin
+  if(!_googleToken){
+    var t = sessionStorage.getItem("fh_google_token");
+    if(t) _googleToken = t;
+  }
   scheduleSave();
   renderFamilyCards();
 }
@@ -1489,6 +1506,22 @@ function triggerImport(){
   document.getElementById("impFileStatic").click();
 }
 
+
+function forceSaveDrive(){
+  if(!_googleToken){
+    var t = sessionStorage.getItem("fh_google_token");
+    if(t) _googleToken = t;
+  }
+  if(!_googleToken){ toast("Connectez d'abord Google Drive dans l'onglet Historique"); return; }
+  // Force save everything
+  _recipes = _recipes || getRecipes();
+  _famille = _famille || getFamille();
+  saveToDrive().then(function(){
+    toast("Sauvegarde sur Drive reussie !");
+  }).catch(function(e){
+    toast("Erreur: " + e.message);
+  });
+}
 
 // ==== EDITEUR FAMILLE ====
 var ACT_FACTORS = [
