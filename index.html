@@ -1202,7 +1202,7 @@ var _googleToken = null;
 var _saveTimer = null;
 
 // --- Auth Google (OAuth implicit flow) ---
-var GOOGLE_CLIENT_ID = localStorage.getItem("fh_google_client_id") || "";
+var GOOGLE_CLIENT_ID = localStorage.getItem("fh_google_client_id") || "720651907355-e8dgab7ldtqgoo4evgvrbp8irnbaigat.apps.googleusercontent.com";
 var GOOGLE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 
 function setGoogleClientId(id){
@@ -1212,9 +1212,8 @@ function setGoogleClientId(id){
 
 function connectGoogle(){
   if(!GOOGLE_CLIENT_ID){
-    var id = prompt("Entrez votre Google Client ID (format: xxxx.apps.googleusercontent.com)");
-    if(!id) return;
-    setGoogleClientId(id.trim());
+    toast("Client ID non configure");
+    return;
   }
   var redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
   var scope = encodeURIComponent(GOOGLE_SCOPE);
