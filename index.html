@@ -1487,16 +1487,14 @@ function openRecipeModal(id){
 function reuseRecipe(id){
   var r=getRecipes().find(function(x){return x.id===id});if(!r)return;
   closeModal("recipeModal");
-  // Mettre l'URL et re-analyser pour avoir des donnees fraiches
-  document.getElementById("recipeUrl").value=r.url||"";
-  // Selectionner la bonne source
-  var src = r.source||"jow";
-  document.querySelectorAll(".stab").forEach(function(b){b.classList.remove("active")});
-  var srcBtn = null;
-  if(srcBtn) srcBtn.classList.add("active");
-  selectedSrc = src;
+  originalAnalysis = r.data;
+  convertedAnalysis = null;
+  document.getElementById("recipeUrl").value = r.url||"";
   showPage("analyze");
-  toast("URL chargee - cliquez Analyser pour relancer l'analyse");
+  hideAllSteps();
+  document.getElementById("step-url").style.display = "block";
+  renderOriginalCard(r.data);
+  toast("Recette chargee");
 }
 function addDate(id){
   var today=new Date().toISOString().split("T")[0];
