@@ -415,7 +415,14 @@ var watchTimer = null;
   if(md) md.value = d.toISOString().split("T")[0];
   // Restaurer session Google si token en memoire
   var savedToken = sessionStorage.getItem("fh_google_token");
-  if(savedToken){ _googleToken = savedToken; }
+  if(savedToken){
+    _googleToken = savedToken;
+    // Charger les donnees Drive si token disponible
+    loadFromDrive().then(function(){
+      renderDbStatus();
+      renderHistory();
+    });
+  }
   // Verifier redirect OAuth Google
   checkOAuthRedirect();
   renderHistory();
@@ -1260,9 +1267,12 @@ function checkOAuthRedirect(){
       _googleToken = token;
       sessionStorage.setItem("fh_google_token", token);
       history.replaceState(null, "", window.location.pathname);
-      toast("Google Drive connecte !");
       renderDbStatus();
-      loadFromDrive();
+      loadFromDrive().then(function(){
+        renderDbStatus();
+        renderHistory();
+        toast("Google Drive connecte !");
+      });
     }
   }
 }
