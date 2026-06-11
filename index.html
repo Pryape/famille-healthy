@@ -540,18 +540,18 @@ function setDemo(t){
 // ==== ANALYSE ====
 function buildAnalyzePrompt(url){
   var season = curSeason();
-  var famDesc = FAM.map(function(m){
+  var famDesc = getFamille().map(function(m){
     return m.name+"("+m.age+"ans,"+m.weight+"kg,cible:"+tkcal(m)+"kcal,prot:"+Math.round(m.weight*m.pGkg)+"g,"+m.goal+")";
   }).join("; ");
-  return 'Analyse cette recette et retourne UNIQUEMENT du JSON valide.\n'+
-    'PAS de texte avant ou apres, PAS de markdown, PAS de backticks.\n\n'+
+  return 'Tu es nutritionniste expert. Analyse cette recette depuis son URL et retourne UNIQUEMENT du JSON valide.\n'+
+    'IMPORTANT: tu dois CALCULER les vraies valeurs caloriques de chaque ingredient (kcal_total), leur somme (kcal_total_recette) et la division par le nombre de portions (kcal_par_personne). Ne mets pas 0.\n\n'+
     'URL: '+url+'\nSource: '+selectedSrc+'\nSaison: '+season+'\nFamille: '+famDesc+'\n\n'+
-    'Structure JSON exacte a respecter:\n'+
-    '{"recipe":{"title":"","source":"'+selectedSrc+'","original_url":"'+url+'","cuisine":"","prep":"20 min","cook":"30 min","servings":4,"emoji":"","description":"","type_plat":"plat"},'+
-    '"qualite":{"nutriscore":"C","nutriscore_raison":"","score_sur_100":60,"points_positifs":[""],"points_negatifs":[""]},'+
+    'JSON a retourner (remplis TOUTES les valeurs, notamment les calories):'+
+    '{"recipe":{"title":"TITRE_RECETTE","source":"'+selectedSrc+'","original_url":"'+url+'","cuisine":"Francaise","prep":"X min","cook":"X min","servings":4,"emoji":"EMOJI","description":"DESCRIPTION_COURTE","type_plat":"plat"},'+
+    '"qualite":{"nutriscore":"A_B_C_D_ou_E","nutriscore_raison":"EXPLICATION","score_sur_100":70,"points_positifs":["point1","point2"],"points_negatifs":["point1","point2"]},'+
     '"types":{"viande":false,"vegan":false,"vegetarien":false,"sans_viande":false,"poisson":false,"de_saison":false,"local":false,"healthy":false},'+
-    '"ingredients":[{"nom":"","quantite":0,"unite":"","kcal_total":0,"origine":"france","saison":["printemps"],"est_viande":false,"est_poisson":false,"est_produit_laitier":false,"tag_ingredient":""}],'+
-    '"kcal_total_recette":0,"kcal_par_personne":0,"tags_auto":[""],"ingredients_principaux":[""]}';
+    '"ingredients":[{"nom":"NOM_INGREDIENT","quantite":QUANTITE_NOMBRE,"unite":"g_ou_ml_ou_autre","kcal_total":CALORIES_CALCULEES,"origine":"france_ou_europe_ou_monde","saison":["printemps","ete","automne","hiver"],"est_viande":false,"est_poisson":false,"est_produit_laitier":false,"tag_ingredient":"viande_legume_etc"}],'+
+    '"kcal_total_recette":SOMME_DE_TOUS_LES_KCAL_TOTAL,"kcal_par_personne":KCAL_TOTAL_DIVISE_PAR_SERVINGS,"tags_auto":["tag1","tag2"],"ingredients_principaux":["ing1","ing2"]}';
 }
 
 // Appel API via Cloudflare Worker (cle securisee cote serveur)
