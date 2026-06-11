@@ -539,7 +539,7 @@ function buildAnalyzePrompt(url){
     '"kcal_total_recette":0,"kcal_par_personne":0,"tags_auto":[""],"ingredients_principaux":[""]}';
 }
 
-// Appel API Anthropic via proxy Netlify (cle securisee cote serveur)
+// Appel API via Cloudflare Worker (cle securisee cote serveur)
 function callGeminiWorker(prompt){
   return fetch("https://famille-healthy-api.rofes-julien.workers.dev/gemini", {
     method: "POST",
@@ -1220,7 +1220,7 @@ function pblock(title,color,text,url){
 function escHtml(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
 function copyP(id){copyText(document.getElementById(id).textContent,"Copie !")}
 
-// ==== STOCKAGE - Google Drive via Netlify proxy ====
+// ==== STOCKAGE - Google Drive via Cloudflare Worker ====
 var _recipes = null;
 var _famille = null;
 var _googleToken = null;
@@ -1274,7 +1274,7 @@ function disconnectGoogle(){
   toast("Deconnecte de Google Drive");
 }
 
-// --- Lecture / ecriture Drive via proxy Netlify ---
+// --- Lecture / ecriture Drive via Cloudflare Worker ---
 async function loadFromDrive(){
   if(!_googleToken) return;
   try{
