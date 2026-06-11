@@ -640,6 +640,13 @@ function resetToUrl(){
 
 // ==== FICHE ORIGINALE ====
 function renderOriginalCard(d){
+  // Recalculer kcal si Gemini ne les a pas remplis
+  if(!d.kcal_total_recette || d.kcal_total_recette === 0){
+    d.kcal_total_recette = (d.ingredients||[]).reduce(function(sum,i){return sum+(i.kcal_total||0)},0);
+  }
+  if(!d.kcal_par_personne || d.kcal_par_personne === 0){
+    d.kcal_par_personne = Math.round(d.kcal_total_recette / ((d.recipe&&d.recipe.servings)||4));
+  }
   var q = d.qualite||{};
   var t = d.types||{};
   var r = d.recipe||{};
@@ -1006,6 +1013,21 @@ function confirmJsonConv(){
 
 // ==== RESULTAT CONVERTI ====
 function renderConvertedResult(d){
+  // Recalculer kcal apres conversion si Gemini ne les a pas remplis
+  if(!d.kcal_par_personne_apres || d.kcal_par_personne_apres === 0){
+    var totalAfter = (d.ingredients||[]).reduce(function(sum,i){
+      return sum + (i.supprime ? 0 : (i.sub_kcal_total || i.orig_kcal_total || 0));
+    }, 0);
+    d.kcal_par_personne_apres = Math.round(totalAfter / 5);
+  }
+  // Recalculer les portions si kcal = 0
+  var portionValues = Object.values(d.portions||{});
+  var allZero = portionValues.every(function(p){ return !p.kcal || p.kcal === 0; });
+  if(allZero && d.kcal_par_personne_apres > 0){
+    portionValues.forEach(function(p){
+      p.kcal = Math.round(d.kcal_par_personne_apres * (p.mult||1));
+    });
+  }
   var nsubs = (d.ingredients||[]).filter(function(i){return i.sub&&!i.supprime}).length;
   var nsup  = (d.ingredients||[]).filter(function(i){return i.supprime}).length;
   var delta = (d.kcal_par_personne_avant||0)-(d.kcal_par_personne_apres||0);
