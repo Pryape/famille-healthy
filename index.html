@@ -414,7 +414,7 @@ var watchTimer = null;
   var md = document.getElementById("mealDate");
   if(md) md.value = d.toISOString().split("T")[0];
   // Restaurer session Google si token en memoire
-  var savedToken = sessionStorage.getItem("fh_google_token");
+  var savedToken = localStorage.getItem("fh_google_token");
   if(savedToken){
     _googleToken = savedToken;
     renderDbStatus(); // Afficher connecte immediatement
@@ -1273,7 +1273,7 @@ function checkOAuthRedirect(){
     var token = params.get("access_token");
     if(token){
       _googleToken = token;
-      sessionStorage.setItem("fh_google_token", token);
+      localStorage.setItem("fh_google_token", token);
       history.replaceState(null, "", window.location.pathname);
       renderDbStatus();
       loadFromDrive().then(function(){
@@ -1287,7 +1287,7 @@ function checkOAuthRedirect(){
 
 function disconnectGoogle(){
   _googleToken = null;
-  sessionStorage.removeItem("fh_google_token");
+  localStorage.removeItem("fh_google_token");
   renderDbStatus();
   toast("Deconnecte de Google Drive");
 }
@@ -1342,13 +1342,13 @@ async function saveToDrive(){
 function scheduleSave(){
   // Restaurer le token depuis sessionStorage si necessaire
   if(!_googleToken){
-    var t = sessionStorage.getItem("fh_google_token");
+    var t = localStorage.getItem("fh_google_token");
     if(t) _googleToken = t;
   }
   if(_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(function(){
     if(!_googleToken){
-      var t = sessionStorage.getItem("fh_google_token");
+      var t = localStorage.getItem("fh_google_token");
       if(t) _googleToken = t;
     }
     if(_googleToken) saveToDrive();
@@ -1377,7 +1377,7 @@ function saveFamille(f){
   localStorage.setItem("fh_famille", JSON.stringify(f));
   // Restaurer token si besoin
   if(!_googleToken){
-    var t = sessionStorage.getItem("fh_google_token");
+    var t = localStorage.getItem("fh_google_token");
     if(t) _googleToken = t;
   }
   scheduleSave();
@@ -1556,7 +1556,7 @@ function triggerImport(){
 
 function forceSaveDrive(){
   if(!_googleToken){
-    var t = sessionStorage.getItem("fh_google_token");
+    var t = localStorage.getItem("fh_google_token");
     if(t) _googleToken = t;
   }
   if(!_googleToken){ toast("Connectez d'abord Google Drive dans l'onglet Historique"); return; }
