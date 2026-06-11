@@ -417,7 +417,8 @@ var watchTimer = null;
   var savedToken = sessionStorage.getItem("fh_google_token");
   if(savedToken){
     _googleToken = savedToken;
-    // Charger les donnees Drive si token disponible
+    renderDbStatus(); // Afficher connecte immediatement
+    // Charger les donnees Drive
     loadFromDrive().then(function(){
       renderDbStatus();
       renderHistory();
@@ -1300,7 +1301,11 @@ async function loadFromDrive(){
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + _googleToken },
       body: JSON.stringify({ action: "read" })
     });
-    if(resp.status === 401){ _googleToken = null; sessionStorage.removeItem("fh_google_token"); renderDbStatus(); return; }
+    if(resp.status === 401){
+      // Ne pas effacer le token immediatement - peut etre un probleme temporaire
+      console.log("Drive 401 - token potentiellement expire");
+      return;
+    }
     var data = await resp.json();
     if(data.error){ toast("Erreur Drive: " + data.error); return; }
     _recipes = Array.isArray(data.recipes) ? data.recipes : [];
