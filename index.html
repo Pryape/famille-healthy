@@ -543,15 +543,28 @@ function buildAnalyzePrompt(url){
   var famDesc = getFamille().map(function(m){
     return m.name+"("+m.age+"ans,"+m.weight+"kg,cible:"+tkcal(m)+"kcal,prot:"+Math.round(m.weight*m.pGkg)+"g,"+m.goal+")";
   }).join("; ");
-  return 'Tu es nutritionniste expert. Analyse cette recette depuis son URL et retourne UNIQUEMENT du JSON valide.\n'+
-    'IMPORTANT: tu dois CALCULER les vraies valeurs caloriques de chaque ingredient (kcal_total), leur somme (kcal_total_recette) et la division par le nombre de portions (kcal_par_personne). Ne mets pas 0.\n\n'+
-    'URL: '+url+'\nSource: '+selectedSrc+'\nSaison: '+season+'\nFamille: '+famDesc+'\n\n'+
-    'JSON a retourner (remplis TOUTES les valeurs, notamment les calories):'+
-    '{"recipe":{"title":"TITRE_RECETTE","source":"'+selectedSrc+'","original_url":"'+url+'","cuisine":"Francaise","prep":"X min","cook":"X min","servings":4,"emoji":"EMOJI","description":"DESCRIPTION_COURTE","type_plat":"plat"},'+
-    '"qualite":{"nutriscore":"A_B_C_D_ou_E","nutriscore_raison":"EXPLICATION","score_sur_100":70,"points_positifs":["point1","point2"],"points_negatifs":["point1","point2"]},'+
-    '"types":{"viande":false,"vegan":false,"vegetarien":false,"sans_viande":false,"poisson":false,"de_saison":false,"local":false,"healthy":false},'+
-    '"ingredients":[{"nom":"NOM_INGREDIENT","quantite":QUANTITE_NOMBRE,"unite":"g_ou_ml_ou_autre","kcal_total":CALORIES_CALCULEES,"origine":"france_ou_europe_ou_monde","saison":["printemps","ete","automne","hiver"],"est_viande":false,"est_poisson":false,"est_produit_laitier":false,"tag_ingredient":"viande_legume_etc"}],'+
-    '"kcal_total_recette":SOMME_DE_TOUS_LES_KCAL_TOTAL,"kcal_par_personne":KCAL_TOTAL_DIVISE_PAR_SERVINGS,"tags_auto":["tag1","tag2"],"ingredients_principaux":["ing1","ing2"]}';
+  return 'Tu es nutritionniste expert. Analyse la recette a cette URL et retourne UNIQUEMENT un objet JSON valide, sans markdown ni backticks.\n\n'+
+    'URL: '+url+'\n'+
+    'Source: '+selectedSrc+'\n'+
+    'Saison actuelle: '+season+'\n'+
+    'Famille (5 membres): '+famDesc+'\n\n'+
+    'INSTRUCTIONS IMPORTANTES:\n'+
+    '- Visite mentalement la page et identifie tous les ingredients avec leurs quantites reelles\n'+
+    '- Calcule les calories de CHAQUE ingredient (kcal_total) en utilisant les tables nutritionnelles standard\n'+
+    '- Additionne tous les kcal_total pour obtenir kcal_total_recette\n'+
+    '- Divise kcal_total_recette par servings pour obtenir kcal_par_personne\n'+
+    '- NE METS JAMAIS 0 pour les calories sauf si l ingredient a vraiment 0 calories (eau, sel)\n\n'+
+    'Structure JSON attendue:\n'+
+    '{\n'+
+    '  "recipe": {"title": string, "source": "'+selectedSrc+'", "original_url": "'+url+'", "cuisine": string, "prep": string, "cook": string, "servings": number, "emoji": string, "description": string, "type_plat": string},\n'+
+    '  "qualite": {"nutriscore": "A"|"B"|"C"|"D"|"E", "nutriscore_raison": string, "score_sur_100": number, "points_positifs": [string], "points_negatifs": [string]},\n'+
+    '  "types": {"viande": bool, "vegan": bool, "vegetarien": bool, "sans_viande": bool, "poisson": bool, "de_saison": bool, "local": bool, "healthy": bool},\n'+
+    '  "ingredients": [{"nom": string, "quantite": number, "unite": string, "kcal_total": number, "origine": string, "saison": [string], "est_viande": bool, "est_poisson": bool, "est_produit_laitier": bool, "tag_ingredient": string}],\n'+
+    '  "kcal_total_recette": number,\n'+
+    '  "kcal_par_personne": number,\n'+
+    '  "tags_auto": [string],\n'+
+    '  "ingredients_principaux": [string]\n'+
+    '}';
 }
 
 // Appel API via Cloudflare Worker (cle securisee cote serveur)
@@ -894,7 +907,7 @@ function buildConvPrompt(){
     sans_viande:"remplacer viande par poisson ou legumineuses"
   }[convOptions.type]||"optimiser pour 5 personnes";
   var modLabels = {
-    healthy:"remplacer ingredients trop caloriques selon principes ATP: farine blanche->epautre/sarrasin, sucre->miel/agave, huile tournesol->olive vierge, creme->yaourt grec 0%, pates blanches->lentilles corail ou pates completes",
+    healthy:"remplacer ingredients trop caloriques selon principes ATP: farine blanche->epautre/sarrasin, sucre->miel/agave, huile tournesol->olive vierge, creme->yaourt grec 0%, pates blanches->lentilles corail",
     de_saison:"remplacer ingredients hors saison "+season+" par equivalents de saison",
     local:"remplacer ingredients non francais par alternatives francaises"
   };
@@ -902,62 +915,39 @@ function buildConvPrompt(){
   var ingList = (d.ingredients||[]).map(function(i){
     return i.nom+"("+i.quantite+i.unite+","+i.kcal_total+"kcal,"+i.origine+",viande:"+i.est_viande+",poisson:"+i.est_poisson+")";
   }).join("; ");
+  var portStr = portionsJson();
+  var atpBefore = (d.qualite&&d.qualite.score_sur_100)||50;
+  var kcalAvant = d.kcal_par_personne||0;
 
-  var portionsStr = portionsJson();
-
-  return 'Tu es nutritionniste expert ATP et chef cuisinier. Convertis cette recette.\n\n'+
-    'RECETTE ORIGINALE: "'+( d.recipe&&d.recipe.title||"")+'" | '+d.kcal_par_personne+' kcal/pers\n'+
+  return 'Tu es nutritionniste expert ATP et chef cuisinier. Convertis cette recette et retourne UNIQUEMENT un objet JSON valide, sans markdown ni backticks.\n\n'+
+    'RECETTE: "'+( d.recipe&&d.recipe.title||"")+'" | '+kcalAvant+' kcal/pers | Score ATP: '+atpBefore+'/100\n'+
     'INGREDIENTS: '+ingList+'\n'+
     'TYPE DE CONVERSION: '+typeLabel+'\n'+
     'MODIFICATEURS: '+modsLabel+'\n'+
-    'FAMILLE: '+famDesc+'\n\n'+
-    'REGLES IMPORTANTES:\n'+
-    '- Calcule les vraies calories de chaque ingredient substitue\n'+
-    '- Remplis orig_kcal_total avec les kcal originaux, sub_kcal_total avec les kcal apres substitution\n'+
-    '- Calcule kcal_par_personne_apres en divisant le total des sub_kcal_total par 5\n'+
-    '- Calcule les portions pour chaque membre selon son multiplicateur\n'+
-    '- Calcule atp_after entre 0 et 100 (score qualite nutritionnelle)\n'+
-    '- drive_search = terme de recherche supermarche precis\n\n'+
-    'Retourne UNIQUEMENT du JSON valide, sans markdown, sans texte avant ou apres.\n\n'+
-    '{'+
-    '"recipe":{'+
-      '"title":"'+( d.recipe&&d.recipe.title||"")+' - version '+convOptions.type+'",'+
-      '"source":"'+(d.recipe&&d.recipe.source||"")+'",'+ 
-      '"original_url":"'+(d.recipe&&d.recipe.original_url||"")+'",'+ 
-      '"cuisine":"'+(d.recipe&&d.recipe.cuisine||"")+'",'+ 
-      '"prep":"'+(d.recipe&&d.recipe.prep||"")+'",'+ 
-      '"cook":"'+(d.recipe&&d.recipe.cook||"")+'",'+ 
-      '"servings":5,"emoji":"'+(d.recipe&&d.recipe.emoji||"")+'",'+ 
-      '"type_plat":"'+(d.recipe&&d.recipe.type_plat||"plat")+'",'+ 
-      '"atp_before":'+(d.qualite&&d.qualite.score_sur_100||50)+','+
-      '"atp_after":0,'+
-      '"conversion_type":"'+convOptions.type+'",'+
-      '"conversion_mods":'+JSON.stringify(convOptions.mods)+
-    '},'+
-    '"ingredients":[{'+
-      '"original":"nom original",'+
-      '"orig_kcal_total":0,'+
-      '"atp_issue":"probleme detecte ou null",'+
-      '"sub":"nouvel ingredient ou null si inchange",'+
-      '"sub_qty":0,'+
-      '"sub_unit":"g ou ml ou autre",'+
-      '"sub_kcal_total":0,'+
-      '"reason":"raison courte ou null",'+
-      '"price":0,'+
-      '"drive_search":"terme recherche supermarche",'+
-      '"supprime":false'+
-    '}],'+
-    portionsStr+','+
-    '"kcal_par_personne_avant":'+( d.kcal_par_personne||0)+','+
-    '"kcal_par_personne_apres":0,'+
-    '"atp_tips":["conseil court 1","conseil court 2"],'+
-    '"recomp_note":"conseil recomposition parents",'+
-    '"total_price":0,'+
-    '"tags_auto":["tag1","tag2"],'+
-    '"ingredients_principaux":["ing1","ing2"]'+
+    'FAMILLE: '+famDesc+'\n'+
+    'Pere & Mere: recomposition, proteines max, deficit calorique\n'+
+    'Enfants: croissance, portions adaptees au poids\n\n'+
+    'INSTRUCTIONS:\n'+
+    '- Pour chaque ingredient: calcule orig_kcal_total (calories originales) et sub_kcal_total (calories apres substitution)\n'+
+    '- Calcule kcal_par_personne_apres = somme des sub_kcal_total divise par 5\n'+
+    '- Calcule les portions (kcal et prot) pour chaque membre selon son mult\n'+
+    '- Calcule atp_after entre 0 et 100 selon qualite nutritionnelle finale\n'+
+    '- Estime le prix de chaque ingredient en euros\n'+
+    '- drive_search = terme precis pour chercher en supermarche\n\n'+
+    'Structure JSON:\n'+
+    '{\n'+
+    '  "recipe": {"title": "'+( d.recipe&&d.recipe.title||"")+' - version '+convOptions.type+'", "source": "'+( d.recipe&&d.recipe.source||"")+'" , "original_url": "'+( d.recipe&&d.recipe.original_url||"")+'" , "cuisine": "'+( d.recipe&&d.recipe.cuisine||"")+'" , "prep": "'+( d.recipe&&d.recipe.prep||"")+'" , "cook": "'+( d.recipe&&d.recipe.cook||"")+'" , "servings": 5, "emoji": "'+( d.recipe&&d.recipe.emoji||"")+'" , "type_plat": "'+( d.recipe&&d.recipe.type_plat||"plat")+'" , "atp_before": '+atpBefore+', "atp_after": number, "conversion_type": "'+convOptions.type+'" , "conversion_mods": '+JSON.stringify(convOptions.mods)+'},\n'+
+    '  "ingredients": [{"original": string, "orig_kcal_total": number, "atp_issue": string|null, "sub": string|null, "sub_qty": number, "sub_unit": string, "sub_kcal_total": number, "reason": string|null, "price": number, "drive_search": string, "supprime": bool}],\n'+
+    '  '+portStr+',\n'+
+    '  "kcal_par_personne_avant": '+kcalAvant+',\n'+
+    '  "kcal_par_personne_apres": number,\n'+
+    '  "atp_tips": [string, string],\n'+
+    '  "recomp_note": string,\n'+
+    '  "total_price": number,\n'+
+    '  "tags_auto": [string],\n'+
+    '  "ingredients_principaux": [string]\n'+
     '}';
 }
-
 
 function startConversion(){
   var btn = document.getElementById("convBtn");
@@ -1489,25 +1479,7 @@ function importHistory(e){
 }
 
 // ==== HISTORIQUE ====
-function exportHistory(){
-  var blob=new Blob([JSON.stringify({recipes:getRecipes(),exportedAt:new Date().toISOString()},null,2)],{type:"application/json"});
-  var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="famille-healthy-data.json";a.click();
-  toast("Export telecharge");
-}
-function importHistory(e){
-  var file=e.target.files[0];if(!file)return;
-  var reader=new FileReader();
-  reader.onload=function(ev){
-    try{
-      var imp=JSON.parse(ev.target.result);
-      var existing=getRecipes();var existIds=new Set(existing.map(function(r){return r.id}));
-      var news=(imp.recipes||[]).filter(function(r){return !existIds.has(r.id)});
-      saveRecipes(existing.concat(news));renderHistory();toast(news.length+" recette(s) importee(s)");
-    }catch(err){toast("Erreur import")}
-  };
-  reader.readAsText(file);
-  e.target.value="";
-}
+
 function renderHistory(){
   var recipes=getRecipes();
   var q=(document.getElementById("histSearch")||{}).value||"";
