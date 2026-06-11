@@ -923,29 +923,29 @@ function buildConvPrompt(){
       '"servings":5,"emoji":"'+(d.recipe&&d.recipe.emoji||"")+'",'+ 
       '"type_plat":"'+(d.recipe&&d.recipe.type_plat||"plat")+'",'+ 
       '"atp_before":'+(d.qualite&&d.qualite.score_sur_100||50)+','+
-      '"atp_after":CALCULER_ENTRE_0_ET_100,'+
+      '"atp_after":0,'+
       '"conversion_type":"'+convOptions.type+'",'+
       '"conversion_mods":'+JSON.stringify(convOptions.mods)+
     '},'+
     '"ingredients":[{'+
       '"original":"nom original",'+
-      '"orig_kcal_total":CALORIES_ORIGINALES,'+
+      '"orig_kcal_total":0,'+
       '"atp_issue":"probleme detecte ou null",'+
       '"sub":"nouvel ingredient ou null si inchange",'+
-      '"sub_qty":QUANTITE_NUMERIQUE,'+
+      '"sub_qty":0,'+
       '"sub_unit":"g ou ml ou autre",'+
-      '"sub_kcal_total":CALORIES_APRES_SUBSTITUTION,'+
+      '"sub_kcal_total":0,'+
       '"reason":"raison courte ou null",'+
-      '"price":PRIX_EN_EUROS,'+
+      '"price":0,'+
       '"drive_search":"terme recherche supermarche",'+
       '"supprime":false'+
     '}],'+
     portionsStr+','+
     '"kcal_par_personne_avant":'+( d.kcal_par_personne||0)+','+
-    '"kcal_par_personne_apres":CALCULER_TOTAL_SUB_KCAL_DIVISE_PAR_5,'+
+    '"kcal_par_personne_apres":0,'+
     '"atp_tips":["conseil court 1","conseil court 2"],'+
     '"recomp_note":"conseil recomposition parents",'+
-    '"total_price":SOMME_DES_PRIX,'+
+    '"total_price":0,'+
     '"tags_auto":["tag1","tag2"],'+
     '"ingredients_principaux":["ing1","ing2"]'+
     '}';
