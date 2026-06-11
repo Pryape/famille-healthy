@@ -427,6 +427,13 @@ var watchTimer = null;
   checkOAuthRedirect();
   renderHistory();
   renderDbStatus();
+  // Verifier le statut toutes les secondes pendant 5s apres chargement
+  var statusChecks = 0;
+  var statusInterval = setInterval(function(){
+    statusChecks++;
+    renderDbStatus();
+    if(statusChecks >= 5) clearInterval(statusInterval);
+  }, 1000);
   document.getElementById("recipeModal").addEventListener("click", function(e){if(e.target.id==="recipeModal")closeModal("recipeModal")});
   document.getElementById("driveModal").addEventListener("click", function(e){if(e.target.id==="driveModal")closeModal("driveModal")});
   startWatcher();
