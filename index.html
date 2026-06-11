@@ -540,11 +540,11 @@ function buildAnalyzePrompt(url){
 }
 
 // Appel API Anthropic via proxy Netlify (cle securisee cote serveur)
-function callAnthropicProxy(messages){
-  return fetch("/.netlify/functions/anthropic", {
+function callGeminiWorker(prompt){
+  return fetch("https://famille-healthy-api.rofes-julien.workers.dev/gemini", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: messages })
+    body: JSON.stringify({ prompt: prompt })
   }).then(function(resp){
     return resp.json().then(function(data){
       if(!resp.ok) throw new Error(data.error || "Erreur API");
@@ -561,7 +561,7 @@ function startAnalysis(){
   document.getElementById("loadingMsg").textContent = "Analyse de la recette en cours...";
   hideAllSteps();
   document.getElementById("step-loading").style.display = "block";
-  callAnthropicProxy([{role:"user",content:buildAnalyzePrompt(url)}]).then(function(result){
+  callGeminiWorker(buildAnalyzePrompt(url)).then(function(result){
     hideAllSteps();
     document.getElementById("step-url").style.display = "block";
     originalAnalysis = result;
@@ -894,7 +894,7 @@ function startConversion(){
   document.getElementById("loadingMsg").textContent = "Conversion de la recette en cours...";
   hideAllSteps();
   document.getElementById("step-loading").style.display = "block";
-  callAnthropicProxy([{role:"user",content:buildConvPrompt()}]).then(function(result){
+  callGeminiWorker(buildConvPrompt()).then(function(result){
     hideAllSteps();
     document.getElementById("step-url").style.display = "block";
     convertedAnalysis = result;
@@ -1278,7 +1278,7 @@ function disconnectGoogle(){
 async function loadFromDrive(){
   if(!_googleToken) return;
   try{
-    var resp = await fetch("/.netlify/functions/drive", {
+    var resp = await fetch("https://famille-healthy-api.rofes-julien.workers.dev/drive", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + _googleToken },
       body: JSON.stringify({ action: "read" })
@@ -1303,7 +1303,7 @@ async function loadFromDrive(){
 async function saveToDrive(){
   if(!_googleToken) return;
   try{
-    var resp = await fetch("/.netlify/functions/drive", {
+    var resp = await fetch("https://famille-healthy-api.rofes-julien.workers.dev/drive", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + _googleToken },
       body: JSON.stringify({
