@@ -848,16 +848,16 @@ function backToConvOptions(){
 }
 
 function calcPortionWeight(ingredients, mult){
-  // Additionne les ingredients solides/liquides en g ou ml
   var total = 0;
   (ingredients||[]).forEach(function(ing){
-    var qty = ing.sub_qty || ing.quantite || ing.qty || 0;
-    var unit = (ing.sub_unit || ing.unite || ing.unit || "").toLowerCase();
-    // Convertir en grammes approximatif
-    if(unit === "g" || unit === "ml" || unit === "cl" && (total += parseFloat(qty)||0));
-    else if(unit === "kg" || unit === "l") total += (parseFloat(qty)||0) * 1000;
-    else if(unit === "cl") total += (parseFloat(qty)||0) * 10;
-    // Ignorer gousses, pincees, etc.
+    if(ing.supprime) return;
+    // Prendre la quantite apres substitution en priorite
+    var qty = parseFloat(ing.sub_qty || ing.quantite || ing.qty || 0);
+    var unit = (ing.sub_unit || ing.unite || ing.unit || "").toLowerCase().trim();
+    if(unit === "g" || unit === "ml") total += qty;
+    else if(unit === "kg" || unit === "l") total += qty * 1000;
+    else if(unit === "cl") total += qty * 10;
+    // gousses, pincees, brins, feuilles = negligeable
   });
   return Math.round(total * (mult||1) / 5);
 }
@@ -1047,11 +1047,11 @@ function renderConvertedResult(d){
   // Portions
   html += '<div class="card">'+
     '<div style="font-size:12px;font-weight:500;color:var(--tx2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:9px">Portions famille</div>';
-  var portionKeys = Object.keys(d.portions||{});
+  var portionValues = Object.values(d.portions||{});
   FAM.forEach(function(m, idx){
-    // Chercher la portion par nom exact, ou par index si le nom a change
+    // Chercher la portion par nom exact, ou par position si le nom a change
     var p = (d.portions||{})[m.name];
-    if(!p && portionKeys[idx]) p = (d.portions||{})[portionKeys[idx]];
+    if(!p) p = portionValues[idx];
     if(!p) p = {kcal:0, prot:0};
     var ppct = Math.round((p.kcal||0)/tkcal(m)*100);
     var col = m.goal==="recomp"?"#7C3AED":"var(--gr)";
@@ -1112,10 +1112,10 @@ function renderKcal(){
   '</div>';
 
   html += '<div class="stitle">Par membre</div>';
-  var portionKeys2 = Object.keys((data.portions)||{});
+  var portionValues2 = Object.values(data.portions||{});
   FAM.forEach(function(m, idx){
     var p = (data.portions||{})[m.name];
-    if(!p && portionKeys2[idx]) p = (data.portions||{})[portionKeys2[idx]];
+    if(!p) p = portionValues2[idx];
     if(!p) p = {kcal:0, prot:0};
     var ppct = Math.round((p.kcal||0)/tkcal(m)*100);
     var col = m.goal==="recomp"?"#7C3AED":"var(--gr)";
