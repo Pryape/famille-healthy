@@ -181,13 +181,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);font-
       </div>
       <div class="stitle">Profils famille</div>
       <div class="fscroll" id="famScroll"></div>
-      <div class="card" style="margin-top:10px;background:var(--pul);border:1px solid rgba(91,33,182,.15)">
-        <div style="font-size:12px;font-weight:500;color:var(--pu);margin-bottom:4px">Recomposition</div>
-        <div style="font-size:12px;color:#4C1D95;line-height:1.7">
-          Pere 100kg -&gt; 73-75kg : 2113 kcal/j - P:200g - deficit -600<br>
-          Mere 78.3kg -&gt; 72kg : 1749 kcal/j - P:141g - deficit -400
-        </div>
-      </div>
+      <div id="recompCard" style="margin-top:10px"></div>
     </div>
 
     <!-- LOADING -->
@@ -484,6 +478,17 @@ function showPage(id){
 
 // ==== FAMILLE ====
 function renderFamilyCards(){
+  // Recomp card dynamique
+  var rc = document.getElementById("recompCard");
+  if(rc){
+    var rm = getFamille().filter(function(m){return m.goal==="recomp"||m.goal==="loss"});
+    rc.innerHTML = rm.length > 0 ?
+      '<div class="card" style="background:var(--pul);border:1px solid rgba(91,33,182,.15)">'+
+      '<div style="font-size:12px;font-weight:500;color:var(--pu);margin-bottom:4px">Recomposition</div>'+
+      '<div style="font-size:12px;color:#4C1D95;line-height:1.7">'+
+      rm.map(function(m){return m.name+' '+m.weight+'kg -> '+(m.tw||'?')+'kg : '+tkcal(m)+' kcal/j - P:'+Math.round(m.weight*m.pGkg)+'g - deficit '+m.deficit}).join('<br>')+
+      '</div></div>' : '';
+  }
   var html = FAM.map(function(m){
     var t = tkcal(m), p = Math.round(m.weight*m.pGkg), isR = m.goal==="recomp";
     var loss = m.deficit ? Math.abs(m.deficit*7/7700).toFixed(2) : null;
@@ -1459,13 +1464,17 @@ function openRecipeModal(id){
 }
 function reuseRecipe(id){
   var r=getRecipes().find(function(x){return x.id===id});if(!r)return;
-  closeModal("recipeModal");originalAnalysis=r.data;convertedAnalysis=null;
+  closeModal("recipeModal");
+  // Mettre l'URL et re-analyser pour avoir des donnees fraiches
   document.getElementById("recipeUrl").value=r.url||"";
+  // Selectionner la bonne source
+  var src = r.source||"jow";
+  document.querySelectorAll(".stab").forEach(function(b){b.classList.remove("active")});
+  var srcBtn = null;
+  if(srcBtn) srcBtn.classList.add("active");
+  selectedSrc = src;
   showPage("analyze");
-  hideAllSteps();
-  document.getElementById("step-url").style.display="block";
-  renderOriginalCard(r.data);
-  toast("Recette chargee");
+  toast("URL chargee - cliquez Analyser pour relancer l'analyse");
 }
 function addDate(id){
   var today=new Date().toISOString().split("T")[0];
