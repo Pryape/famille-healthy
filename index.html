@@ -1490,11 +1490,19 @@ function reuseRecipe(id){
   originalAnalysis = r.data;
   convertedAnalysis = null;
   document.getElementById("recipeUrl").value = r.url||"";
-  showPage("analyze");
+  // Changer de page manuellement sans reset
+  document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active")});
+  document.querySelectorAll(".nb").forEach(function(b){b.classList.remove("active")});
+  document.getElementById("page-analyze").classList.add("active");
+  document.getElementById("nav-analyze").classList.add("active");
+  // Afficher les bonnes zones
   hideAllSteps();
   document.getElementById("step-url").style.display = "block";
+  document.getElementById("step-original").style.display = "block";
+  // Rendre la fiche
   renderOriginalCard(r.data);
   toast("Recette chargee");
+  window.scrollTo({top:0,behavior:"smooth"});
 }
 function addDate(id){
   var today=new Date().toISOString().split("T")[0];
