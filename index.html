@@ -877,7 +877,7 @@ function portionsJson(){
 function buildConvPrompt(){
   var d = originalAnalysis;
   var season = curSeason();
-  var famDesc = FAM.map(function(m){
+  var famDesc = getFamille().map(function(m){
     return m.name+"("+m.age+"ans,"+m.weight+"kg,cible:"+tkcal(m)+"kcal,prot:"+Math.round(m.weight*m.pGkg)+"g,"+m.goal+")";
   }).join("; ");
   var typeLabel = {
@@ -887,7 +887,7 @@ function buildConvPrompt(){
     sans_viande:"remplacer viande par poisson ou legumineuses"
   }[convOptions.type]||"optimiser pour 5 personnes";
   var modLabels = {
-    healthy:"remplacer ingredients trop caloriques selon principes ATP: farine blanche->epautre/sarrasin, sucre->miel/agave, huile tournesol->olive vierge, creme->yaourt grec, pates blanches->lentilles corail",
+    healthy:"remplacer ingredients trop caloriques selon principes ATP: farine blanche->epautre/sarrasin, sucre->miel/agave, huile tournesol->olive vierge, creme->yaourt grec 0%, pates blanches->lentilles corail ou pates completes",
     de_saison:"remplacer ingredients hors saison "+season+" par equivalents de saison",
     local:"remplacer ingredients non francais par alternatives francaises"
   };
@@ -895,31 +895,62 @@ function buildConvPrompt(){
   var ingList = (d.ingredients||[]).map(function(i){
     return i.nom+"("+i.quantite+i.unite+","+i.kcal_total+"kcal,"+i.origine+",viande:"+i.est_viande+",poisson:"+i.est_poisson+")";
   }).join("; ");
-  return 'Convertis cette recette et retourne UNIQUEMENT du JSON valide.\n'+
-    'PAS de texte avant ou apres, PAS de markdown, PAS de backticks.\n\n'+
-    'RECETTE: "'+( d.recipe&&d.recipe.title||"")+'" | KCAL/pers: '+(d.kcal_par_personne||0)+'\n'+
+
+  var portionsStr = portionsJson();
+
+  return 'Tu es nutritionniste expert ATP et chef cuisinier. Convertis cette recette.\n\n'+
+    'RECETTE ORIGINALE: "'+( d.recipe&&d.recipe.title||"")+'" | '+d.kcal_par_personne+' kcal/pers\n'+
     'INGREDIENTS: '+ingList+'\n'+
-    'TYPE: '+typeLabel+'\nMODIFICATEURS: '+modsLabel+'\n'+
-    'FAMILLE: '+famDesc+'\n'+
-    'Pere & Mere: recomposition, deficit -600/-400kcal, proteines max\n'+
-    'Enfants: croissance, portions adaptees\n\n'+
-    'Structure JSON exacte:\n'+
-    '{"recipe":{"title":"'+( d.recipe&&d.recipe.title||"")+' - version '+convOptions.type+'",'+
-    '"source":"'+(d.recipe&&d.recipe.source||"")+'",'+ 
-    '"original_url":"'+(d.recipe&&d.recipe.original_url||"")+'",'+ 
-    '"cuisine":"'+(d.recipe&&d.recipe.cuisine||"")+'",'+ 
-    '"prep":"'+(d.recipe&&d.recipe.prep||"")+'",'+ 
-    '"cook":"'+(d.recipe&&d.recipe.cook||"")+'",'+ 
-    '"servings":5,"emoji":"'+(d.recipe&&d.recipe.emoji||"")+'",'+ 
-    '"type_plat":"'+(d.recipe&&d.recipe.type_plat||"plat")+'",'+ 
-    '"atp_before":'+(d.qualite&&d.qualite.score_sur_100||50)+',"atp_after":0,'+ 
-    '"conversion_type":"'+convOptions.type+'",'+ 
-    '"conversion_mods":'+JSON.stringify(convOptions.mods)+'},'+
-    '"ingredients":[{"original":"","orig_kcal_total":0,"atp_issue":null,"sub":null,"sub_qty":0,"sub_unit":"","sub_kcal_total":0,"reason":null,"price":0,"drive_search":"","supprime":false}],'+
-    portionsJson()+','+
-    '"kcal_par_personne_avant":'+(d.kcal_par_personne||0)+',"kcal_par_personne_apres":0,'+
-    '"atp_tips":["",""],"recomp_note":"","total_price":0,"tags_auto":[""],"ingredients_principaux":[""]}';
+    'TYPE DE CONVERSION: '+typeLabel+'\n'+
+    'MODIFICATEURS: '+modsLabel+'\n'+
+    'FAMILLE: '+famDesc+'\n\n'+
+    'REGLES IMPORTANTES:\n'+
+    '- Calcule les vraies calories de chaque ingredient substitue\n'+
+    '- Remplis orig_kcal_total avec les kcal originaux, sub_kcal_total avec les kcal apres substitution\n'+
+    '- Calcule kcal_par_personne_apres en divisant le total des sub_kcal_total par 5\n'+
+    '- Calcule les portions pour chaque membre selon son multiplicateur\n'+
+    '- Calcule atp_after entre 0 et 100 (score qualite nutritionnelle)\n'+
+    '- drive_search = terme de recherche supermarche precis\n\n'+
+    'Retourne UNIQUEMENT du JSON valide, sans markdown, sans texte avant ou apres.\n\n'+
+    '{'+
+    '"recipe":{'+
+      '"title":"'+( d.recipe&&d.recipe.title||"")+' - version '+convOptions.type+'",'+
+      '"source":"'+(d.recipe&&d.recipe.source||"")+'",'+ 
+      '"original_url":"'+(d.recipe&&d.recipe.original_url||"")+'",'+ 
+      '"cuisine":"'+(d.recipe&&d.recipe.cuisine||"")+'",'+ 
+      '"prep":"'+(d.recipe&&d.recipe.prep||"")+'",'+ 
+      '"cook":"'+(d.recipe&&d.recipe.cook||"")+'",'+ 
+      '"servings":5,"emoji":"'+(d.recipe&&d.recipe.emoji||"")+'",'+ 
+      '"type_plat":"'+(d.recipe&&d.recipe.type_plat||"plat")+'",'+ 
+      '"atp_before":'+(d.qualite&&d.qualite.score_sur_100||50)+','+
+      '"atp_after":CALCULER_ENTRE_0_ET_100,'+
+      '"conversion_type":"'+convOptions.type+'",'+
+      '"conversion_mods":'+JSON.stringify(convOptions.mods)+
+    '},'+
+    '"ingredients":[{'+
+      '"original":"nom original",'+
+      '"orig_kcal_total":CALORIES_ORIGINALES,'+
+      '"atp_issue":"probleme detecte ou null",'+
+      '"sub":"nouvel ingredient ou null si inchange",'+
+      '"sub_qty":QUANTITE_NUMERIQUE,'+
+      '"sub_unit":"g ou ml ou autre",'+
+      '"sub_kcal_total":CALORIES_APRES_SUBSTITUTION,'+
+      '"reason":"raison courte ou null",'+
+      '"price":PRIX_EN_EUROS,'+
+      '"drive_search":"terme recherche supermarche",'+
+      '"supprime":false'+
+    '}],'+
+    portionsStr+','+
+    '"kcal_par_personne_avant":'+( d.kcal_par_personne||0)+','+
+    '"kcal_par_personne_apres":CALCULER_TOTAL_SUB_KCAL_DIVISE_PAR_5,'+
+    '"atp_tips":["conseil court 1","conseil court 2"],'+
+    '"recomp_note":"conseil recomposition parents",'+
+    '"total_price":SOMME_DES_PRIX,'+
+    '"tags_auto":["tag1","tag2"],'+
+    '"ingredients_principaux":["ing1","ing2"]'+
+    '}';
 }
+
 
 function startConversion(){
   var btn = document.getElementById("convBtn");
