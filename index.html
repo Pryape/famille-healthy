@@ -268,68 +268,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);font-
 <!-- PAGE AGENT -->
 <div class="page" id="page-agent">
   <div class="ph">
-    <div class="pt">Agent <em style="font-style:italic;color:var(--gr)">Chrome</em></div>
-    <div class="ps">Drive supermarche + Google Agenda</div>
+    <div class="pt">Listes <em style="font-style:italic;color:var(--gr)">de courses</em></div>
+    <div class="ps">Ajout automatique dans Google Tasks</div>
   </div>
   <div class="ct">
     <div class="card" style="background:var(--bll);border:1px solid rgba(30,64,175,.15);margin-bottom:12px">
-      <div style="font-size:12px;font-weight:500;color:var(--bl);margin-bottom:4px">Claude in Chrome</div>
-      <div style="font-size:12px;color:#1e3a8a;line-height:1.6">Copiez un bloc ci-dessous et collez-le dans le panneau Claude in Chrome.</div>
-    </div>
-    <div class="stitle">Drive supermarche</div>
-    <div class="dgrid" id="driveGrid">
-      <div class="dopt sel" onclick="selDrive(this,'leclerc')"><div class="dcolor" style="background:#003189">E</div><div class="dlogo">Leclerc Drive</div></div>
-      <div class="dopt" onclick="selDrive(this,'carrefour')"><div class="dcolor" style="background:#005CA9">C</div><div class="dlogo">Carrefour Drive</div></div>
-      <div class="dopt" onclick="selDrive(this,'auchan')"><div class="dcolor" style="background:#E2001A">A</div><div class="dlogo">Auchan Drive</div></div>
-      <div class="dopt" onclick="selDrive(this,'intermarche')"><div class="dcolor" style="background:#C8001E">I</div><div class="dlogo">Intermarche</div></div>
-    </div>
-    <div class="stitle">Planifier le repas</div>
-    <div class="card">
-      <div class="r2">
-        <div class="fl"><label>Date</label><input type="date" id="mealDate"/></div>
-        <div class="fl"><label>Heure</label>
-          <select id="mealTime">
-            <option value="12:00">Dejeuner 12h00</option>
-            <option value="13:00">Dejeuner 13h00</option>
-            <option value="19:00">Diner 19h00</option>
-            <option value="19:30" selected>Diner 19h30</option>
-            <option value="20:00">Diner 20h00</option>
-          </select>
-        </div>
-      </div>
-      <div class="r2">
-        <div class="fl"><label>Agenda</label>
-          <select id="calName">
-            <option>Famille</option>
-            <option>Personnel</option>
-            <option>Repas</option>
-          </select>
-        </div>
-        <div class="fl"><label>Duree</label>
-          <select id="mealDur">
-            <option value="30">30 min</option>
-            <option value="45" selected>45 min</option>
-            <option value="60">1h00</option>
-          </select>
-        </div>
+      <div style="font-size:12px;font-weight:500;color:var(--bl);margin-bottom:4px">Google Tasks</div>
+      <div style="font-size:12px;color:#1e3a8a;line-height:1.6">
+        Les ingredients sont ajoutes dans un Google Sheet partage avec 4 onglets : <strong>Boucherie</strong>, <strong>Primeur</strong>, <strong>Supermarche</strong> et <strong>Recettes</strong>.
+        Le fichier est cree automatiquement dans votre Google Drive.
       </div>
     </div>
-    <button class="btn btnp" onclick="buildPrompts()" style="margin-bottom:12px">Generer les instructions Agent</button>
-    <div id="agentPrompts"></div>
-  </div>
-</div>
-
-<!-- PAGE FAMILLE -->
-<div class="page" id="page-famille">
-  <div class="ph">
-    <div class="pt">Ma <em style="font-style:italic;color:var(--gr)">Famille</em></div>
-    <div class="ps">Profils nutritionnels - sauvegardes dans votre fichier JSON</div>
-  </div>
-  <div class="ct">
-    <div id="familleList"></div>
-    <div style="display:flex;gap:8px;margin-top:4px">
-      <button class="btn btnp" style="flex:1" onclick="addMember()">+ Ajouter un membre</button>
-      <button class="btn btno" onclick="forceSaveDrive()">Sauvegarder sur Drive</button>
+    <div id="agentContent">
+      <div class="empty">Analysez et convertissez une recette, puis cliquez "Ajouter a la liste de courses".</div>
     </div>
   </div>
 </div>
@@ -353,23 +304,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);font-
 <!-- Input fichier statique pour import -->
 <input type="file" id="impFileStatic" accept=".json" style="display:none" onchange="importHistory(event)"/>
 
+<!-- MODAL LISTE DE COURSES -->
+<div class="mover" id="shoppingModal">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtitle">Ajouter a la liste de courses</div>
+    <div style="font-size:13px;color:var(--tx2);margin-bottom:14px">Selectionnez les ingredients a ajouter. Les ingredients coches seront ajoutes dans Google Tasks.</div>
+    <div id="shoppingIngList" style="margin-bottom:16px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btns btnsm" onclick="closeModal('shoppingModal')">Annuler</button>
+      <button class="btn btnp btnsm" style="flex:1" onclick="confirmShopping()">Ajouter dans Google Sheets</button>
+    </div>
+    <div id="shoppingStatus" style="font-size:12px;margin-top:10px;text-align:center"></div>
+    <a id="shoppingLink" href="#" target="_blank" class="btn btno btnsm" style="display:none;margin-top:8px;width:100%;text-decoration:none">Ouvrir le Google Sheet</a>
+  </div>
+</div>
+
 <!-- MODAL DETAIL -->
 <div class="mover" id="recipeModal">
   <div class="modal"><div class="mhandle"></div><div id="modalContent"></div></div>
-</div>
-<!-- MODAL DRIVE -->
-<div class="mover" id="driveModal">
-  <div class="modal">
-    <div class="mhandle"></div>
-    <div class="mtitle">Choisir le drive</div>
-    <div class="dgrid" id="driveModalGrid">
-      <div class="dopt sel" onclick="selDriveM(this,'leclerc')"><div class="dcolor" style="background:#003189">E</div><div class="dlogo">Leclerc Drive</div></div>
-      <div class="dopt" onclick="selDriveM(this,'carrefour')"><div class="dcolor" style="background:#005CA9">C</div><div class="dlogo">Carrefour Drive</div></div>
-      <div class="dopt" onclick="selDriveM(this,'auchan')"><div class="dcolor" style="background:#E2001A">A</div><div class="dlogo">Auchan Drive</div></div>
-      <div class="dopt" onclick="selDriveM(this,'intermarche')"><div class="dcolor" style="background:#C8001E">I</div><div class="dlogo">Intermarche</div></div>
-    </div>
-    <button class="btn btnp" onclick="confirmCart()">Generer le prompt panier</button>
-  </div>
 </div>
 
 <script>
@@ -436,7 +389,7 @@ document.addEventListener("DOMContentLoaded", function(){
     if(statusChecks >= 5) clearInterval(statusInterval);
   }, 1000);
   document.getElementById("recipeModal").addEventListener("click", function(e){if(e.target.id==="recipeModal")closeModal("recipeModal")});
-  document.getElementById("driveModal").addEventListener("click", function(e){if(e.target.id==="driveModal")closeModal("driveModal")});
+  document.getElementById("shoppingModal").addEventListener("click", function(e){if(e.target.id==="shoppingModal")closeModal("shoppingModal")});
   startWatcher();
 });
 
@@ -1122,7 +1075,7 @@ function renderConvertedResult(d){
     '<div class="btn-row">'+
       '<button class="btn btno btnsm" onclick="showConvertPanel()">Autre version</button>'+
       '<button class="btn btns btnsm" onclick="showSavePanel(\'converted\')">Sauvegarder</button>'+
-      '<button class="btn btnp btnsm" style="flex:1" onclick="openModal(\'driveModal\')">Ajouter au panier</button>'+
+      '<button class="btn btnp btnsm" style="flex:1" onclick="openShoppingModal()">Ajouter a la liste de courses</button>'+
     '</div>'+
   '</div>'+
   '<div id="savePanel-converted" style="display:none">'+renderSavePanelHTML('converted')+'</div>';
@@ -1208,94 +1161,8 @@ function renderKcal(){
 }
 
 // ==== AGENT PROMPTS ====
-function selDrive(el,k){document.querySelectorAll("#driveGrid .dopt").forEach(function(d){d.classList.remove("sel")});el.classList.add("sel");selectedDriveKey=k}
-function selDriveM(el,k){document.querySelectorAll("#driveModalGrid .dopt").forEach(function(d){d.classList.remove("sel")});el.classList.add("sel");selectedDriveMKey=k}
-function confirmCart(){selectedDriveKey=selectedDriveMKey;closeModal("driveModal");showPage("agent");setTimeout(buildPrompts,100)}
 
-function buildPrompts(){
-  var data = convertedAnalysis||originalAnalysis;
-  if(!data){toast("Analysez d'abord une recette");return}
-  var drive = DRIVES[selectedDriveKey];
-  var mealDate = document.getElementById("mealDate").value;
-  var mealTime = document.getElementById("mealTime").value;
-  var calName  = document.getElementById("calName").value;
-  var mealDur  = parseInt(document.getElementById("mealDur").value)||45;
-  var dateObj  = mealDate?new Date(mealDate+"T"+mealTime+":00"):new Date();
-  var endObj   = new Date(dateObj.getTime()+mealDur*60000);
-  var dateStr  = dateObj.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
-  var endTime  = endObj.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
-  var r = data.recipe||{};
-  var ings = data.ingredients||[];
-  var cartLines = ings.filter(function(i){return !i.supprime}).map(function(i){
-    return '  - "'+( i.drive_search||i.sub||i.original||i.nom||"")+'" | '+(i.sub_qty||i.quantite||"")+" "+(i.sub_unit||i.unite||"");
-  }).join("\n");
-  var portStr = FAM.map(function(m){
-    var p=(data.portions||{})[m.name]||{};
-    return "  "+m.name+": "+(p.kcal||"-")+"kcal - P:"+(p.prot||"-")+"g";
-  }).join("\n");
-  var subStr = ings.filter(function(i){return i.sub&&!i.supprime}).map(function(i){
-    return "  - "+i.original+" > "+i.sub+(i.reason?" ("+i.reason+")":"");
-  }).join("\n")||"  Aucune modification";
 
-  var calBody = r.title+"\n"+(r.original_url||"")+
-    "\n\nATP: "+(r.atp_before||"-")+" > "+(r.atp_after||"-")+"/100"+
-    "\nCalories: "+(data.kcal_par_personne_avant||data.kcal_par_personne||"-")+" > "+(data.kcal_par_personne_apres||data.kcal_par_personne||"-")+" kcal/pers"+
-    "\n\nModifications:\n"+subStr+
-    "\n\nPortions famille:\n"+portStr+
-    "\n\n"+(data.atp_tips||[]).join(" - ")+
-    (data.recomp_note?"\nRecomp: "+data.recomp_note:"");
-
-  var pDrive = "Tu es un agent navigateur. Je suis connecte a "+drive.name+" ("+drive.url+").\n"+
-    "Ajoute ces produits a mon panier un par un:\n\n"+
-    "RECETTE: "+r.title+" - 5 personnes\n"+
-    cartLines+"\n\n"+
-    "Pour chaque produit:\n"+
-    "1. Recherche le terme entre guillemets dans la barre de recherche\n"+
-    "2. Selectionne le plus pertinent (prefere BIO si ecart < 30%)\n"+
-    "3. Regle la quantite exacte\n"+
-    "4. Clique Ajouter au panier - attends la confirmation\n"+
-    "5. Passe au suivant\n\n"+
-    "Ne valide PAS la commande - laisse le panier ouvert.\n"+
-    "Budget estime: ~"+(data.total_price||0).toFixed(0)+" euros\n"+
-    "Resume: X produits ajoutes | manquants eventuels | total affiche";
-
-  var pAgenda = "Tu es un agent navigateur sur Google Agenda (calendar.google.com).\n"+
-    "Cree cet evenement:\n"+
-    "TITRE: "+r.title+"\n"+
-    "AGENDA: "+calName+"\n"+
-    "DATE: "+dateStr+"\n"+
-    "DEBUT: "+mealTime+" - FIN: "+endTime+"\n"+
-    "DESCRIPTION:\n"+calBody+"\n\n"+
-    "Procedure: clique sur "+dateStr+" a "+mealTime+" > Plus d'options > remplis titre, heure fin "+endTime+", agenda "+calName+", description > Enregistrer.\n"+
-    "Ne modifie aucun evenement existant.";
-
-  var pAll = "Effectue ces deux taches dans l'ordre.\n\n"+
-    "TACHE 1/2 - "+drive.name.toUpperCase()+"\n"+
-    pDrive+"\n\n"+
-    "TACHE 2/2 - GOOGLE AGENDA\n"+
-    pAgenda+"\n\n"+
-    "Resume final:\n"+
-    "OK Panier "+drive.name+": X produits\n"+
-    "OK Agenda "+calName+": evenement le "+dateStr+" a "+mealTime;
-
-  document.getElementById("agentPrompts").innerHTML =
-    pblock("Panier "+drive.name,"var(--gr)",pDrive,drive.url)+
-    pblock("Google Agenda","var(--bl)",pAgenda,"https://calendar.google.com")+
-    pblock("Prompt combine","var(--pu)",pAll,null);
-}
-
-function pblock(title,color,text,url){
-  var id = "pb"+Math.random().toString(36).slice(2);
-  return '<div class="card" style="border-left:3px solid '+color+'">'+
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
-      '<div style="font-size:13px;font-weight:500;color:'+color+'">'+title+'</div>'+
-      (url?'<button class="btn btns btnsm" onclick="window.open(\''+url+'\',\'_blank\')">Ouvrir</button>':'')+
-    '</div>'+
-    '<div class="pbox" id="'+id+'">'+escHtml(text)+'</div>'+
-    '<button class="btn btno btnsm" onclick="copyP(\''+id+'\')">Copier</button>'+
-  '</div>';
-}
-function escHtml(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
 function copyP(id){copyText(document.getElementById(id).textContent,"Copie !")}
 
 // ==== STOCKAGE - Google Drive via Cloudflare Worker ====
@@ -1306,7 +1173,7 @@ var _saveTimer = null;
 
 // --- Auth Google (OAuth implicit flow) ---
 var GOOGLE_CLIENT_ID = localStorage.getItem("fh_google_client_id") || "720651907355-e8dgab7ldtqgoo4evgvrbp8irnbaigat.apps.googleusercontent.com";
-var GOOGLE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+var GOOGLE_SCOPE = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets";
 
 function setGoogleClientId(id){
   GOOGLE_CLIENT_ID = id;
@@ -1781,6 +1648,123 @@ function addMember(){
     var cards = document.querySelectorAll("#familleList .card");
     if(cards.length) cards[cards.length-1].scrollIntoView({behavior:"smooth"});
   }, 100);
+}
+
+
+// ==== CATEGORISATION INGREDIENTS ====
+function categorizeIngredient(ing){
+  var nom = (ing.nom||ing.sub||ing.original||"").toLowerCase();
+  var tag = (ing.tag_ingredient||"").toLowerCase();
+  if(ing.est_viande||ing.est_poisson||tag==="viande"||tag==="poisson"||tag==="charcuterie"||tag==="fruit de mer"){
+    return "Boucherie";
+  }
+  if((tag==="legume"||tag==="fruit"||tag==="herbe"||tag==="herbe aromatique"||tag==="legume aromate"||tag==="aromate") &&
+     !/(lentille|pois chiche|haricot|feve|soja|tofu|seitan|tempeh)/.test(nom)){
+    return "Primeur";
+  }
+  if(/^(tomate|carotte|courgette|aubergine|poivron|oignon|ail|echalote|pomme|poire|banane|citron|orange|salade|epinard|brocoli|chou|poireau|navet|radis|champignon|basilic|persil|thym|romarin|coriandre|menthe|laurier|ciboulette|pomme de terre|patate douce)/.test(nom)){
+    return "Primeur";
+  }
+  return "Supermarche";
+}
+
+// ==== MODAL LISTE DE COURSES ====
+function openShoppingModal(){
+  var data = convertedAnalysis||originalAnalysis;
+  if(!data){toast("Analysez d abord une recette");return;}
+  if(!_googleToken){toast("Connectez Google Drive dans l onglet Historique");return;}
+
+  var ings = (data.ingredients||[]).filter(function(i){return !i.supprime});
+  var html = "";
+  var groups = {Boucherie:[],Primeur:[],Supermarche:[]};
+  ings.forEach(function(ing){
+    var cat = categorizeIngredient(ing);
+    ing._cat = cat;
+    groups[cat].push(ing);
+  });
+
+  var colors = {Boucherie:"var(--rd)",Primeur:"var(--gr)",Supermarche:"var(--bl)"};
+  var icons = {Boucherie:"Boucherie",Primeur:"Primeur",Supermarche:"Supermarche"};
+
+  Object.keys(groups).forEach(function(cat){
+    if(!groups[cat].length) return;
+    html += "<div style='font-size:11px;font-weight:500;color:"+colors[cat]+";text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px'>"+icons[cat]+"</div>";
+    groups[cat].forEach(function(ing,i){
+      var nom = ing.sub||ing.nom||ing.original||"";
+      var qty = ing.sub_qty||ing.quantite||ing.qty||0;
+      var unit = ing.sub_unit||ing.unite||ing.unit||"";
+      var id = "shop_"+cat+"_"+i;
+      html += "<label style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd);cursor:pointer'>"+
+        "<input type='checkbox' id='"+id+"' checked style='width:16px;height:16px;cursor:pointer' "+
+        "data-nom='"+nom+"' data-qty='"+qty+"' data-unit='"+unit+"' data-cat='"+cat+"' "+
+        "data-original='"+(ing.original||ing.nom||"")+"' data-sub='"+(ing.sub||"")+"'/>"+
+        "<span style='flex:1;font-size:13px'>"+nom+"</span>"+
+        "<span style='font-size:12px;color:var(--tx2)'>"+qty+" "+unit+"</span>"+
+        "</label>";
+    });
+  });
+
+  document.getElementById("shoppingIngList").innerHTML = html;
+  document.getElementById("shoppingStatus").textContent = "";
+  document.getElementById("shoppingLink").style.display = "none";
+  openModal("shoppingModal");
+}
+
+async function confirmShopping(){
+  var data = convertedAnalysis||originalAnalysis;
+  if(!data||!_googleToken) return;
+  var statusEl = document.getElementById("shoppingStatus");
+  var linkEl = document.getElementById("shoppingLink");
+  statusEl.textContent = "Ajout en cours dans Google Sheets...";
+  statusEl.style.color = "var(--am)";
+
+  var checked = document.querySelectorAll("#shoppingIngList input[type=checkbox]:checked");
+  var ingredients = [];
+  checked.forEach(function(cb){
+    ingredients.push({
+      nom: cb.dataset.nom,
+      quantite: parseFloat(cb.dataset.qty)||0,
+      unite: cb.dataset.unit,
+      categorie: cb.dataset.cat
+    });
+  });
+  if(!ingredients.length){toast("Aucun ingredient selectionne");return;}
+
+  var subs = (data.ingredients||[])
+    .filter(function(i){return i.sub&&!i.supprime})
+    .map(function(i){return {original:i.original||i.nom,sub:i.sub,reason:i.reason}});
+
+  var r = data.recipe||{};
+  try{
+    var resp = await fetch("https://famille-healthy-api.rofes-julien.workers.dev/sheets",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+_googleToken},
+      body:JSON.stringify({
+        action:"addIngredients",
+        ingredients:ingredients,
+        recipeTitle:r.title||"Recette",
+        recipeUrl:r.original_url||"",
+        substitutions:subs
+      })
+    });
+    var result = await resp.json();
+    if(result.ok){
+      statusEl.textContent = ingredients.length+" ingredient(s) ajoutes !";
+      statusEl.style.color = "var(--gr)";
+      linkEl.style.display = "block";
+      linkEl.href = result.sheetUrl;
+      var existing = getRecipes().find(function(rx){
+        return rx.url===(r.original_url||"")&&rx.context===(convertedAnalysis?"converted":"original");
+      });
+      if(!existing) saveCtx(convertedAnalysis?"converted":"original");
+    } else {
+      statusEl.textContent = "Erreur: "+(result.error||"inconnue");
+      statusEl.style.color = "var(--rd)";
+    }
+  }catch(e){
+    statusEl.textContent = "Erreur: "+e.message;
+    statusEl.style.color = "var(--rd)";
+  }
 }
 
 // ==== UTILS ====
