@@ -408,7 +408,7 @@ var pendingConvJSON = null;
 var watchTimer = null;
 
 // ==== INIT ====
-(function(){
+document.addEventListener("DOMContentLoaded", function(){
   renderFamilyCards();
   var d = new Date(); d.setDate(d.getDate()+1);
   var md = document.getElementById("mealDate");
@@ -438,7 +438,7 @@ var watchTimer = null;
   document.getElementById("recipeModal").addEventListener("click", function(e){if(e.target.id==="recipeModal")closeModal("recipeModal")});
   document.getElementById("driveModal").addEventListener("click", function(e){if(e.target.id==="driveModal")closeModal("driveModal")});
   startWatcher();
-})();
+});
 
 // ==== AUTO WATCHER (Claude in Chrome writes to #claude-output) ====
 function startWatcher(){
