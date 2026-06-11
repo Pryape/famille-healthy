@@ -741,7 +741,8 @@ function renderTagChips(ctx){
   }).join("");
 }
 function buildAutoTags(data, opts){
-  var tags=[], r=data.recipe||{}, t=data.types||{};
+  if(!data) return [];
+  var tags=[], r=(data.recipe)||{}, t=(data.types)||{};
   if(r.source) tags.push(r.source);
   tags.push("recette originale");
   (data.ingredients_principaux||[]).slice(0,4).forEach(function(i){tags.push(i)});
@@ -757,7 +758,9 @@ function buildAutoTags(data, opts){
 function saveCtx(ctx){
   var data = ctx==="original" ? originalAnalysis : convertedAnalysis;
   if(!data){toast("Aucune recette a sauvegarder");return}
-  var autoTags = buildAutoTags(ctx==="converted"?originalAnalysis:data, ctx==="converted"?convOptions:null);
+  // Pour une recette convertie chargee depuis l'historique, originalAnalysis peut etre null
+  var baseData = ctx==="converted" ? (originalAnalysis || convertedAnalysis) : data;
+  var autoTags = buildAutoTags(baseData, ctx==="converted"?convOptions:null);
   var allTags = autoTags.concat(tagStates[ctx]||[]);
   var seen={};allTags=allTags.filter(function(t){if(!seen[t]){seen[t]=1;return true}return false});
   var recipes = getRecipes();
