@@ -568,8 +568,15 @@ function callGeminiWorker(prompt){
 }
 
 function startAnalysis(){
-  var url = document.getElementById("recipeUrl").value.trim();
-  if(!url){toast("Collez l'URL d'une recette");return}
+  var rawUrl = document.getElementById("recipeUrl").value.trim();
+  if(!rawUrl){toast("Collez l'URL d'une recette");return}
+  // Nettoyer l'URL : supprimer les parametres et fragments
+  var url = rawUrl;
+  try {
+    var parsed = new URL(rawUrl);
+    url = parsed.origin + parsed.pathname; // garder seulement domaine + chemin
+  } catch(e) { url = rawUrl.split("?")[0].split("#")[0]; }
+  document.getElementById("recipeUrl").value = url;
   var btn = document.getElementById("analyzeBtn");
   if(btn){ btn.disabled = true; btn.textContent = "Analyse..."; }
   document.getElementById("loadingMsg").textContent = "Analyse de la recette en cours...";
@@ -2181,7 +2188,9 @@ async function confirmShoppingSheets(){
       var existing = getRecipes().find(function(rx){
         return rx.url===(r.original_url||"")&&rx.context===(convertedAnalysis?"converted":"original");
       });
-      if(!existing) saveCtx(convertedAnalysis?"converted":"original");
+      if(!existing){
+        try{ saveCtx(convertedAnalysis?"converted":"original"); } catch(e){}
+      }
     } else {
       statusEl.textContent = "Erreur: "+(result.error||"inconnue");
       statusEl.style.color = "var(--rd)";
