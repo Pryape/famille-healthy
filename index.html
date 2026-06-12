@@ -2175,6 +2175,7 @@ async function confirmShoppingSheets(){
       })
     });
     var result = await resp.json();
+    console.log("Sheets result:", JSON.stringify(result));
     if(result.alreadyPlanned){
       // Recette deja dans la liste - demander confirmation
       statusEl.style.color = "var(--am)";
