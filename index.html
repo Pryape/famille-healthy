@@ -1901,21 +1901,21 @@ function categorizeIngredient(ing){
     return "Boucherie";
   }
 
-  // 2. CONDIMENTS : sauces, epices, matieres grasses, assaisonnements
-  if(tag==="condiment"||tag==="epice"||tag==="sauce"||tag==="assaisonnement"||tag==="aromate sec"||
-     tag==="matiere grasse"||tag==="huile"||tag==="panure"||tag==="farine"||
-     /^(sel|poivre|moutarde|vinaigre|sauce soja|sauce worcester|tabasco|ketchup|mayonnaise|huile|beurre|margarine|sucre|miel|sirop|farine|maizena|levure|bicarbonate|cannelle|curcuma|paprika|cumin|coriandre en poudre|gingembre en poudre|curry|herbes de provence|bouquet garni|bouillon|concentre de tomate|coulis|laurier|thym sec|romarin sec|basilic sec|oregano|muscade|clou de girofle|piment|harissa|tahini|tamari|miso|vinaigre balsamique|vinaigre de riz|creme balsamique|chapelure|panko|fecule)/.test(nom)){
-    return "Condiments";
-  }
-
-  // 3. PRIMEUR : fruits, legumes frais, herbes fraiches
+  // 2. PRIMEUR : fruits, legumes frais, herbes fraiches - AVANT condiments car oignon/ail peuvent matcher
   if((tag==="legume"||tag==="fruit"||tag==="herbe"||tag==="herbe aromatique"||
       tag==="legume aromate"||tag==="aromate") &&
      !/(lentille|pois chiche|haricot|feve|soja|tofu|seitan|tempeh)/.test(nom)){
     return "Primeur";
   }
-  if(/^(tomate|carotte|courgette|aubergine|poivron|oignon|ail|echalote|pomme|poire|banane|citron|orange|salade|epinard|brocoli|chou|poireau|navet|radis|champignon|basilic frais|persil frais|ciboulette|menthe|pomme de terre|patate douce|avocat|concombre|celeri|fenouil|asperge|artichaut|roquette|mache|haricot vert|petit pois|betterave|potiron|courge|fraise|framboise|myrtille|cerise|peche|abricot|mangue|ananas|kiwi|raisin)/.test(nom)){
+  if(/^(tomate|carotte|courgette|aubergine|poivron|oignon|ail|echalote|pomme|poire|banane|citron|orange|salade|epinard|brocoli|chou|poireau|navet|radis|champignon|basilic frais|persil frais|ciboulette|menthe fraiche|pomme de terre|patate douce|avocat|concombre|celeri|fenouil|asperge|artichaut|roquette|mache|haricot vert|petit pois|betterave|potiron|courge|fraise|framboise|myrtille|cerise|peche|abricot|mangue|ananas|kiwi|raisin|poireau|courgette|brocoli)/.test(nom)){
     return "Primeur";
+  }
+
+  // 3. CONDIMENTS : sauces, epices, matieres grasses, assaisonnements
+  if(tag==="condiment"||tag==="epice"||tag==="sauce"||tag==="assaisonnement"||tag==="aromate sec"||
+     tag==="matiere grasse"||tag==="huile"||tag==="panure"||tag==="farine"||
+     /^(sel|poivre|moutarde|vinaigre|sauce soja|sauce worcester|tabasco|ketchup|mayonnaise|huile|beurre|margarine|sucre|miel|sirop|farine|maizena|levure|bicarbonate|cannelle|curcuma|paprika|cumin|coriandre en poudre|gingembre en poudre|curry|herbes de provence|persillade|bouquet garni|bouillon|concentre de tomate|coulis|laurier|thym sec|romarin sec|basilic sec|oregano|muscade|clou de girofle|piment|harissa|tahini|tamari|miso|vinaigre balsamique|vinaigre de riz|creme balsamique|chapelure|panko|fecule)/.test(nom)){
+    return "Condiments";
   }
 
   // 4. SUPERMARCHE : laitages, fromages, oeufs, feculents, legumineuses...
@@ -2014,8 +2014,8 @@ function openShoppingModal(mode){
         "<span style='font-size:10px;color:var(--tx3);margin-left:4px'>(recette:"+origQty+origUnit+")</span>" : "";
       html += "<label style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd);cursor:pointer'>"+
         "<input type='checkbox' id='"+id+"' checked style='width:16px;height:16px;cursor:pointer' "+
-        "data-nom='"+nom+"' data-qty='"+qty+"' data-unit='"+unit+"' data-cat='"+cat+"' "+
-        "data-original='"+(ing.original||ing.nom||"")+"' data-sub='"+(ing.sub||"")+"'/>"+
+        "data-nom='"+nom.replace(/'/g,'&apos;')+"' data-qty='"+qty+"' data-unit='"+unit+"' data-cat='"+cat+"' "+
+        "data-original='"+(ing.original||ing.nom||"").replace(/'/g,'&apos;')+"' data-sub='"+(ing.sub||"").replace(/'/g,'&apos;')+"'/>"+
         "<span style='flex:1;font-size:13px'>"+nom+"</span>"+
         "<span style='font-size:12px;color:var(--tx2)'>"+qty+" "+unit+scaledLabel+"</span>"+
         "</label>";
@@ -2175,7 +2175,6 @@ async function confirmShoppingSheets(){
       })
     });
     var result = await resp.json();
-    console.log("Sheets result:", JSON.stringify(result));
     if(result.alreadyPlanned){
       // Recette deja dans la liste - demander confirmation
       statusEl.style.color = "var(--am)";
