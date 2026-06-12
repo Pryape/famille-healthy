@@ -708,7 +708,7 @@ function renderOriginalCard(d){
           "<div style=\'margin-top:2px\'><div class=\'pbar\'><div class=\'pfill\' style=\'width:" + Math.min(ppct,100) + "%;background:" + col + "\'></div></div></div>" +
           "</div>" +
           "<div style=\'text-align:right\'><div style=\'font-size:12px;font-weight:500;color:" + col + "\'>" + (p.kcal||0) + " kcal</div>" +
-          "<div style=\'font-size:10px;color:var(--tx2)\'>" + ppct + "% journee</div></div>" +
+          "<div style=\'font-size:10px;color:var(--tx2)\'>" + " kcal</div></div>" +
           "</div>";
       }).join("") +
       '</div>' : '')+
@@ -1128,7 +1128,6 @@ function renderConvertedResult(d){
       '</div>'+
       '<div style="text-align:right;flex-shrink:0">'+
         '<div style="font-size:13px;font-weight:500;color:'+col+'">'+(p.kcal||0)+' kcal</div>'+
-        '<div style="font-size:10px;color:var(--tx2)">'+(p.prot||0)+'g prot - '+ppct+'% journee</div>'+
         '<div style="font-size:10px;color:var(--tx3)">~'+calcPortionWeight(d.ingredients,p.mult||1)+'g dans l\'assiette</div>'+
       '</div>'+
     '</div>';
@@ -1196,7 +1195,6 @@ function renderKcal(){
       '</div>'+
       '<div style="text-align:right;flex-shrink:0">'+
         '<div style="font-size:14px;font-weight:500;color:'+col+'">'+(p.kcal||0)+' kcal</div>'+
-        '<div style="font-size:11px;color:var(--tx2)">'+(p.prot||0)+'g prot - '+ppct+'% journee</div>'+
         '<div style="font-size:11px;color:var(--tx3)">~'+calcPortionWeight(data.ingredients,p.mult||1)+'g dans l\'assiette</div>'+
       '</div>'+
     '</div>';
