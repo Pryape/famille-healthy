@@ -304,18 +304,38 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);font-
 <!-- Input fichier statique pour import -->
 <input type="file" id="impFileStatic" accept=".json" style="display:none" onchange="importHistory(event)"/>
 
-<!-- MODAL LISTE DE COURSES -->
+<!-- MODAL VALIDATION SUBSTITUTIONS -->
+<div class="mover" id="subsModal">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtitle">Valider les remplacements</div>
+    <div style="font-size:13px;color:var(--tx2);margin-bottom:14px">Activez ou desactivez chaque remplacement ATP propose.</div>
+    <div id="subsList" style="margin-bottom:16px"></div>
+    <div id="subsKcalInfo" style="font-size:13px;font-weight:500;color:var(--gr);margin-bottom:14px;text-align:center"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btns btnsm" onclick="closeModal('subsModal')">Annuler</button>
+      <button class="btn btnp btnsm" style="flex:1" onclick="confirmSubs()">Valider et afficher</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LISTE DE COURSES / PANIER DRIVE -->
 <div class="mover" id="shoppingModal">
   <div class="modal">
     <div class="mhandle"></div>
-    <div class="mtitle">Ajouter a la liste de courses</div>
-    <div style="font-size:13px;color:var(--tx2);margin-bottom:14px">Selectionnez les ingredients a ajouter. Les ingredients coches seront ajoutes dans Google Tasks.</div>
+    <div class="mtitle" id="shoppingTitle">Ingredients</div>
+    <div style="font-size:13px;color:var(--tx2);margin-bottom:14px" id="shoppingDesc">Selectionnez les ingredients.</div>
     <div id="shoppingIngList" style="margin-bottom:16px"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btns btnsm" onclick="closeModal('shoppingModal')">Annuler</button>
-      <button class="btn btnp btnsm" style="flex:1" onclick="confirmShopping()">Ajouter dans Google Sheets</button>
+      <button class="btn btnp btnsm" style="flex:1" id="shoppingConfirmBtn" onclick="confirmShopping()">Valider</button>
     </div>
     <div id="shoppingStatus" style="font-size:12px;margin-top:10px;text-align:center"></div>
+    <div id="shoppingDrivePrompt" style="display:none;margin-top:12px">
+      <div style="font-size:12px;font-weight:500;color:var(--bl);margin-bottom:8px">Copiez ce prompt dans Claude in Chrome</div>
+      <div id="shoppingPromptBox" class="pbox" style="max-height:160px"></div>
+      <button class="btn btno btnsm" onclick="copyShoppingPrompt()" style="margin-top:6px">Copier le prompt</button>
+    </div>
     <a id="shoppingLink" href="#" target="_blank" class="btn btno btnsm" style="display:none;margin-top:8px;width:100%;text-decoration:none">Ouvrir le Google Sheet</a>
   </div>
 </div>
@@ -390,6 +410,7 @@ document.addEventListener("DOMContentLoaded", function(){
   }, 1000);
   document.getElementById("recipeModal").addEventListener("click", function(e){if(e.target.id==="recipeModal")closeModal("recipeModal")});
   document.getElementById("shoppingModal").addEventListener("click", function(e){if(e.target.id==="shoppingModal")closeModal("shoppingModal")});
+  document.getElementById("subsModal").addEventListener("click", function(e){if(e.target.id==="subsModal")closeModal("subsModal")});
   startWatcher();
 });
 
@@ -909,11 +930,17 @@ function startConversion(){
   hideAllSteps();
   document.getElementById("step-loading").style.display = "block";
   callGeminiWorker(buildConvPrompt()).then(function(result){
+    convertedAnalysis = result;
     hideAllSteps();
     document.getElementById("step-url").style.display = "block";
-    convertedAnalysis = result;
-    renderConvertedResult(convertedAnalysis);
-    renderKcal();
+    // Si des substitutions existent, les montrer d abord
+    var withSubs = (result.ingredients||[]).filter(function(i){return i.sub&&!i.supprime;});
+    if(withSubs.length > 0){
+      openSubsModal();
+    } else {
+      renderConvertedResult(convertedAnalysis);
+      renderKcal();
+    }
   }).catch(function(e){
     hideAllSteps();
     document.getElementById("step-convert").style.display = "block";
@@ -1072,10 +1099,13 @@ function renderConvertedResult(d){
   // Actions
   html += '<div class="card" style="border:1.5px solid var(--bd2)">'+
     '<div style="font-size:13px;font-weight:500;margin-bottom:11px">Que faire ?</div>'+
-    '<div class="btn-row">'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'+
       '<button class="btn btno btnsm" onclick="showConvertPanel()">Autre version</button>'+
       '<button class="btn btns btnsm" onclick="showSavePanel(\'converted\')">Sauvegarder</button>'+
-      '<button class="btn btnp btnsm" style="flex:1" onclick="openShoppingModal()">Ajouter a la liste de courses</button>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+      '<button class="btn btnp btnsm" onclick="openShoppingModal(\'drive\')">Panier Drive</button>'+
+      '<button class="btn btnp btnsm" onclick="openShoppingModal(\'sheets\')">Liste de courses</button>'+
     '</div>'+
   '</div>'+
   '<div id="savePanel-converted" style="display:none">'+renderSavePanelHTML('converted')+'</div>';
@@ -1444,8 +1474,8 @@ function renderDbStatus(){
     el.innerHTML =
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
         '<div style="width:8px;height:8px;border-radius:50%;background:var(--gr);flex-shrink:0"></div>'+
-        '<div>'+
-          '<div style="font-size:13px;font-weight:500;color:var(--gr)">Google Drive connecte</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="driveButtonsRow"></div>'+
+      '<div style="font-size:13px;font-weight:500;color:var(--gr)">Google Drive connecte</div>'+
           '<div style="font-size:12px;color:var(--tx2)">Sauvegarde automatique - '+count+' recette(s)</div>'+
         '</div>'+
       '</div>'+
@@ -1650,6 +1680,329 @@ function addMember(){
   }, 100);
 }
 
+
+// ==== VALIDATION SUBSTITUTIONS ====
+function openSubsModal(){
+  var data = convertedAnalysis;
+  if(!data){toast("Lancez d abord une conversion");return;}
+
+  var withSubs = (data.ingredients||[]).filter(function(i){return i.sub&&!i.supprime;});
+  if(!withSubs.length){
+    // Pas de substitutions - afficher directement
+    renderConvertedResult(convertedAnalysis);
+    renderKcal();
+    return;
+  }
+
+  var html = withSubs.map(function(ing, i){
+    var delta = (ing.orig_kcal_total||0) - (ing.sub_kcal_total||0);
+    var deltaHtml = delta > 0
+      ? '<span style="font-size:11px;color:var(--gr);font-weight:500">-'+delta+' kcal</span>'
+      : delta < 0
+        ? '<span style="font-size:11px;color:var(--rd);font-weight:500">+'+Math.abs(delta)+' kcal</span>'
+        : '';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--bd)">'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:13px;font-weight:500;color:var(--gr)">'+ing.sub+'</div>'+
+        '<div style="font-size:11px;color:var(--tx3);text-decoration:line-through">'+ing.original+'</div>'+
+        (ing.reason ? '<div style="font-size:11px;color:var(--tx2);font-style:italic">'+ing.reason+'</div>' : '')+
+      '</div>'+
+      '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">'+
+        deltaHtml+
+        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">'+
+          '<input type="checkbox" id="sub_'+i+'" checked style="width:16px;height:16px;cursor:pointer" '+
+          'data-idx="'+i+'" onchange="updateSubsKcal()"/>'+
+          '<span style="font-size:12px;color:var(--tx2)">Garder</span>'+
+        '</label>'+
+      '</div>'+
+    '</div>';
+  }).join("");
+
+  document.getElementById("subsList").innerHTML = html;
+  updateSubsKcal();
+  openModal("subsModal");
+}
+
+function updateSubsKcal(){
+  var data = convertedAnalysis;
+  if(!data) return;
+  var withSubs = (data.ingredients||[]).filter(function(i){return i.sub&&!i.supprime;});
+  var total = (data.ingredients||[]).reduce(function(sum, ing){
+    if(ing.supprime) return sum;
+    var subIdx = withSubs.findIndex(function(s){return s.original===ing.original;});
+    if(subIdx >= 0){
+      var cb = document.getElementById("sub_"+subIdx);
+      var useSub = cb && cb.checked;
+      return sum + (useSub ? (ing.sub_kcal_total||0) : (ing.orig_kcal_total||0));
+    }
+    return sum + (ing.sub_kcal_total||ing.orig_kcal_total||0);
+  }, 0);
+  var perPerson = Math.round(total/5);
+  var el = document.getElementById("subsKcalInfo");
+  if(el) el.textContent = "Total : "+total+" kcal - "+perPerson+" kcal/pers";
+}
+
+function confirmSubs(){
+  var data = convertedAnalysis;
+  if(!data) return;
+  var withSubs = (data.ingredients||[]).filter(function(i){return i.sub&&!i.supprime;});
+
+  // Appliquer les choix utilisateur
+  var modified = JSON.parse(JSON.stringify(data));
+  withSubs.forEach(function(ing, i){
+    var cb = document.getElementById("sub_"+i);
+    var useSub = cb && cb.checked;
+    if(!useSub){
+      // Revenir a l original
+      var idx = modified.ingredients.findIndex(function(x){return x.original===ing.original;});
+      if(idx >= 0){
+        modified.ingredients[idx].sub = null;
+        modified.ingredients[idx].sub_kcal_total = modified.ingredients[idx].orig_kcal_total;
+        modified.ingredients[idx].reason = null;
+      }
+    }
+  });
+
+  // Recalculer kcal apres
+  var totalAfter = modified.ingredients.reduce(function(sum,i){
+    return sum + (i.supprime ? 0 : (i.sub_kcal_total||i.orig_kcal_total||0));
+  }, 0);
+  modified.kcal_par_personne_apres = Math.round(totalAfter/5);
+
+  convertedAnalysis = modified;
+  closeModal("subsModal");
+  hideAllSteps();
+  document.getElementById("step-url").style.display = "block";
+  renderConvertedResult(convertedAnalysis);
+  renderKcal();
+}
+
+// ==== CATEGORISATION INGREDIENTS ====
+function categorizeIngredient(ing){
+  var nom = (ing.nom||ing.sub||ing.original||"").toLowerCase();
+  var tag = (ing.tag_ingredient||"").toLowerCase();
+  if(ing.est_viande||ing.est_poisson||tag==="viande"||tag==="poisson"||tag==="charcuterie"||tag==="fruit de mer"){
+    return "Boucherie";
+  }
+  if((tag==="legume"||tag==="fruit"||tag==="herbe"||tag==="herbe aromatique"||tag==="legume aromate"||tag==="aromate") &&
+     !/(lentille|pois chiche|haricot|feve|soja|tofu|seitan|tempeh)/.test(nom)){
+    return "Primeur";
+  }
+  if(/^(tomate|carotte|courgette|aubergine|poivron|oignon|ail|echalote|pomme|poire|banane|citron|orange|salade|epinard|brocoli|chou|poireau|navet|radis|champignon|basilic|persil|thym|romarin|coriandre|menthe|laurier|ciboulette|pomme de terre|patate douce)/.test(nom)){
+    return "Primeur";
+  }
+  return "Supermarche";
+}
+
+// ==== MODAL LISTE DE COURSES / PANIER DRIVE ====
+var _shoppingMode = "sheets"; // "sheets" ou "drive"
+var DRIVES = {
+  leclerc:    {name:"Leclerc Drive",    url:"https://www.leclercdrive.fr"},
+  carrefour:  {name:"Carrefour Drive",  url:"https://www.carrefour.fr/drive"},
+  auchan:     {name:"Auchan Drive",     url:"https://www.auchandrive.fr"},
+  intermarche:{name:"Intermarche Drive",url:"https://www.intermarche.com/drive"}
+};
+var _selectedDrive = "leclerc";
+
+function openShoppingModal(mode){
+  var data = convertedAnalysis||originalAnalysis;
+  if(!data){toast("Analysez d abord une recette");return;}
+  _shoppingMode = mode||"sheets";
+
+  var titleEl = document.getElementById("shoppingTitle");
+  var descEl = document.getElementById("shoppingDesc");
+  var btnEl = document.getElementById("shoppingConfirmBtn");
+  var driveEl = document.getElementById("shoppingDrivePrompt");
+  var linkEl = document.getElementById("shoppingLink");
+  var statusEl = document.getElementById("shoppingStatus");
+
+  if(mode === "drive"){
+    titleEl.textContent = "Panier Drive";
+    descEl.innerHTML = "Selectionnez les ingredients et choisissez votre drive.";
+    // Boutons drive rendus apres insertion DOM
+    setTimeout(function(){
+      var desc = document.getElementById("shoppingDesc");
+      if(desc){
+        var row = document.createElement("div");
+        row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:8px";
+        Object.keys(DRIVES).forEach(function(k){
+          var btn = document.createElement("button");
+          btn.className = "btn btnsm "+(k===_selectedDrive?"btnp":"btns");
+          btn.id = "drivebtn_"+k;
+          btn.textContent = DRIVES[k].name;
+          btn.addEventListener("click", function(){ selectDrive(k); });
+          row.appendChild(btn);
+        });
+        desc.appendChild(row);
+      }
+    }, 50);
+    btnEl.textContent = "Generer le prompt Drive";
+  } else {
+    if(!_googleToken){toast("Connectez Google Drive dans l onglet Historique");return;}
+    titleEl.textContent = "Liste de courses";
+    descEl.textContent = "Selectionnez les ingredients a ajouter dans Google Sheets.";
+    btnEl.textContent = "Ajouter dans Google Sheets";
+  }
+
+  driveEl.style.display = "none";
+  linkEl.style.display = "none";
+  statusEl.textContent = "";
+
+  // Remplir la liste des ingredients
+  var ings = (data.ingredients||[]).filter(function(i){return !i.supprime});
+  var html = "";
+  var groups = {Boucherie:[],Primeur:[],Supermarche:[]};
+  ings.forEach(function(ing){
+    var cat = categorizeIngredient(ing);
+    ing._cat = cat;
+    groups[cat].push(ing);
+  });
+  var colors = {Boucherie:"var(--rd)",Primeur:"var(--gr)",Supermarche:"var(--bl)"};
+  Object.keys(groups).forEach(function(cat){
+    if(!groups[cat].length) return;
+    html += "<div style='font-size:11px;font-weight:500;color:"+colors[cat]+";text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px'>"+cat+"</div>";
+    groups[cat].forEach(function(ing,i){
+      var nom = ing.sub||ing.nom||ing.original||"";
+      var qty = ing.sub_qty||ing.quantite||ing.qty||0;
+      var unit = ing.sub_unit||ing.unite||ing.unit||"";
+      var id = "shop_"+cat+"_"+i;
+      html += "<label style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd);cursor:pointer'>"+
+        "<input type='checkbox' id='"+id+"' checked style='width:16px;height:16px;cursor:pointer' "+
+        "data-nom='"+nom+"' data-qty='"+qty+"' data-unit='"+unit+"' data-cat='"+cat+"' "+
+        "data-original='"+(ing.original||ing.nom||"")+"' data-sub='"+(ing.sub||"")+"'/>"+
+        "<span style='flex:1;font-size:13px'>"+nom+"</span>"+
+        "<span style='font-size:12px;color:var(--tx2)'>"+qty+" "+unit+"</span>"+
+        "</label>";
+    });
+  });
+  document.getElementById("shoppingIngList").innerHTML = html;
+  openModal("shoppingModal");
+}
+
+function selectDrive(key){
+  _selectedDrive = key;
+  Object.keys(DRIVES).forEach(function(k){
+    var btn = document.getElementById("drivebtn_"+k);
+    if(btn){ btn.className = "btn btnsm "+(k===key?"btnp":"btns"); }
+  });
+}
+
+function getCheckedIngredients(){
+  var checked = document.querySelectorAll("#shoppingIngList input[type=checkbox]:checked");
+  var ingredients = [];
+  checked.forEach(function(cb){
+    ingredients.push({
+      nom: cb.dataset.nom,
+      quantite: parseFloat(cb.dataset.qty)||0,
+      unite: cb.dataset.unit,
+      categorie: cb.dataset.cat,
+      original: cb.dataset.original,
+      sub: cb.dataset.sub
+    });
+  });
+  return ingredients;
+}
+
+async function confirmShopping(){
+  if(_shoppingMode === "drive"){
+    confirmShoppingDrive();
+  } else {
+    await confirmShoppingSheets();
+  }
+}
+
+function confirmShoppingDrive(){
+  var data = convertedAnalysis||originalAnalysis;
+  if(!data) return;
+  var ingredients = getCheckedIngredients();
+  if(!ingredients.length){toast("Aucun ingredient selectionne");return;}
+
+  var drive = DRIVES[_selectedDrive];
+  var r = data.recipe||{};
+  var cartLines = ingredients.map(function(i){
+    return "  - " + i.nom + " | " + i.quantite + " " + i.unite;
+  }).join("\n");
+
+  var lines = [
+    "Tu es un agent navigateur. Je suis connecte a " + drive.name + " (" + drive.url + ").",
+    "Ajoute ces produits a mon panier un par un :",
+    "",
+    "RECETTE : " + (r.title||""),
+    cartLines,
+    "",
+    "Pour chaque produit :",
+    "1. Recherche dans la barre de recherche",
+    "2. Selectionne le plus pertinent (prefere BIO si ecart < 30%)",
+    "3. Regle la quantite exacte",
+    "4. Clique Ajouter au panier",
+    "5. Passe au suivant",
+    "",
+    "Ne valide PAS la commande - laisse le panier ouvert.",
+    "Resume final : X produits ajoutes | manquants eventuels | total affiche"
+  ];
+  var prompt = lines.join("\n");
+
+  document.getElementById("shoppingPromptBox").textContent = prompt;
+  document.getElementById("shoppingDrivePrompt").style.display = "block";
+  document.getElementById("shoppingConfirmBtn").style.display = "none";
+  document.getElementById("shoppingStatus").textContent = "Copiez le prompt et collez-le dans Claude in Chrome.";
+  document.getElementById("shoppingStatus").style.color = "var(--bl)";
+
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(prompt).then(function(){
+      toast("Prompt copie ! Collez-le dans Claude in Chrome.");
+    }).catch(function(){});
+  }
+}
+
+
+async function confirmShoppingSheets(){
+  var data = convertedAnalysis||originalAnalysis;
+  if(!data||!_googleToken) return;
+  var statusEl = document.getElementById("shoppingStatus");
+  var linkEl = document.getElementById("shoppingLink");
+  statusEl.textContent = "Ajout en cours dans Google Sheets...";
+  statusEl.style.color = "var(--am)";
+
+  var ingredients = getCheckedIngredients();
+  if(!ingredients.length){toast("Aucun ingredient selectionne");return;}
+
+  var subs = (data.ingredients||[])
+    .filter(function(i){return i.sub&&!i.supprime;})
+    .map(function(i){return {original:i.original||i.nom,sub:i.sub,reason:i.reason};});
+  var r = data.recipe||{};
+
+  try{
+    var resp = await fetch("https://famille-healthy-api.rofes-julien.workers.dev/sheets",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+_googleToken},
+      body:JSON.stringify({
+        action:"addIngredients",
+        ingredients:ingredients,
+        recipeTitle:r.title||"Recette",
+        recipeUrl:r.original_url||"",
+        substitutions:subs
+      })
+    });
+    var result = await resp.json();
+    if(result.ok){
+      statusEl.textContent = ingredients.length+" ingredient(s) ajoutes !";
+      statusEl.style.color = "var(--gr)";
+      linkEl.style.display = "block";
+      linkEl.href = result.sheetUrl;
+      var existing = getRecipes().find(function(rx){
+        return rx.url===(r.original_url||"")&&rx.context===(convertedAnalysis?"converted":"original");
+      });
+      if(!existing) saveCtx(convertedAnalysis?"converted":"original");
+    } else {
+      statusEl.textContent = "Erreur: "+(result.error||"inconnue");
+      statusEl.style.color = "var(--rd)";
+    }
+  }catch(e){
+    statusEl.textContent = "Erreur: "+e.message;
+    statusEl.style.color = "var(--rd)";
+  }
+}
 
 // ==== CATEGORISATION INGREDIENTS ====
 function categorizeIngredient(ing){
