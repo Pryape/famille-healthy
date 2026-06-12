@@ -533,7 +533,8 @@ function buildAnalyzePrompt(url){
     'Famille (5 membres): '+famDesc+'\n\n'+
     'INSTRUCTIONS IMPORTANTES:\n'+
     '- Lis attentivement TOUTE la page et liste ABSOLUMENT TOUS les ingredients sans en oublier aucun\n'+
-    '- Si un ingredient est liste sur la page (ex: parmesan, vinaigre balsamique, creme), il DOIT apparaitre dans ta liste\n'+
+    '- Si un ingredient est liste sur la page (ex: parmesan, vinaigre balsamique, creme, pommes de terre, oignons), il DOIT apparaitre dans ta liste\n'+
+    '- Les legumes de garniture, les condiments et les epices doivent TOUS etre inclus\n'+
     '- Pour les ingredients composes (ex: poulet pane), decompose en ingredients bruts (poulet, chapelure, oeuf) ET garde aussi les ingredients de sauce/garniture\n'+
     '- Verifie deux fois ta liste avant de repondre : compare avec la liste de la page\n'+
     '- Calcule les calories de CHAQUE ingredient (kcal_total) en utilisant les tables nutritionnelles standard\n'+
@@ -1892,7 +1893,7 @@ function confirmSubs(){
 // ==== CATEGORISATION INGREDIENTS ====
 function categorizeIngredient(ing){
   var nom = (ing.nom||ing.sub||ing.original||"").toLowerCase().trim();
-  var tag = (ing.tag_ingredient||"").toLowerCase().trim();
+  var tag = (ing.tag_ingredient||"").toLowerCase().trim().replace(/_/g," ");
 
   // 1. BOUCHERIE : viandes, poissons, fruits de mer
   if(ing.est_viande||ing.est_poisson||
