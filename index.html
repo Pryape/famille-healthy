@@ -712,9 +712,13 @@ function renderOriginalCard(d){
           "</div>";
       }).join("") +
       '</div>' : '')+
-    '<div class="btn-row">'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'+
       '<button class="btn btno btnsm" onclick="showSavePanel(\'original\')">Sauvegarder</button>'+
-      '<button class="btn btnp btnsm" style="flex:1" onclick="showConvertPanel()">Convertir la recette</button>'+
+      '<button class="btn btnp btnsm" onclick="showConvertPanel()">Convertir</button>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+      '<button class="btn btns btnsm" onclick="openShoppingModal(\'drive\')">Panier Drive</button>'+
+      '<button class="btn btns btnsm" onclick="openShoppingModal(\'sheets\')">Liste de courses</button>'+
     '</div>'+
   '</div>'+
   '<div id="savePanel-original" style="display:none">'+renderSavePanelHTML('original')+'</div>';
