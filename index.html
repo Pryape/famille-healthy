@@ -282,6 +282,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);font-
     <div id="agentContent">
       <div class="empty">Analysez et convertissez une recette, puis cliquez "Ajouter a la liste de courses".</div>
     </div>
+    <div style="margin-top:16px">
+      <div style="font-size:13px;font-weight:500;margin-bottom:10px">Gestion de la liste</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btno" onclick="flushChecked()">Effacer les articles caches</button>
+        <button class="btn btns" style="color:var(--rd)" onclick="flushAll()">Effacer toute la liste</button>
+      </div>
+      <div id="flushStatus" style="font-size:12px;margin-top:10px;text-align:center"></div>
+      <a id="sheetLink" href="#" target="_blank" class="btn btno btnsm" style="display:none;margin-top:8px;width:100%;text-decoration:none">Ouvrir le Google Sheet</a>
+    </div>
   </div>
 </div>
 
@@ -523,7 +532,10 @@ function buildAnalyzePrompt(url){
     'Saison actuelle: '+season+'\n'+
     'Famille (5 membres): '+famDesc+'\n\n'+
     'INSTRUCTIONS IMPORTANTES:\n'+
-    '- Visite mentalement la page et identifie tous les ingredients avec leurs quantites reelles\n'+
+    '- Lis attentivement TOUTE la page et liste ABSOLUMENT TOUS les ingredients sans en oublier aucun\n'+
+    '- Si un ingredient est liste sur la page (ex: parmesan, vinaigre balsamique, creme), il DOIT apparaitre dans ta liste\n'+
+    '- Pour les ingredients composes (ex: poulet pane), decompose en ingredients bruts (poulet, chapelure, oeuf) ET garde aussi les ingredients de sauce/garniture\n'+
+    '- Verifie deux fois ta liste avant de repondre : compare avec la liste de la page\n'+
     '- Calcule les calories de CHAQUE ingredient (kcal_total) en utilisant les tables nutritionnelles standard\n'+
     '- Additionne tous les kcal_total pour obtenir kcal_total_recette\n'+
     '- Divise kcal_total_recette par servings pour obtenir kcal_par_personne\n'+
@@ -789,6 +801,17 @@ function buildAutoTags(data, opts){
 function saveCtx(ctx){
   var data = ctx==="original" ? originalAnalysis : convertedAnalysis;
   if(!data){toast("Aucune recette a sauvegarder");return}
+  // Verifier si deja sauvegardee
+  var r = data.recipe||{};
+  var url = r.original_url||"";
+  var existing = getRecipes().find(function(rx){
+    return rx.url===url && rx.context===ctx;
+  });
+  if(existing){
+    toast("Recette deja sauvegardee !");
+    hideSavePanel(ctx);
+    return;
+  }
   // Pour une recette convertie chargee depuis l'historique, originalAnalysis peut etre null
   var baseData = ctx==="converted" ? (originalAnalysis || convertedAnalysis) : data;
   var autoTags = buildAutoTags(baseData, ctx==="converted"?convOptions:null);
@@ -1718,6 +1741,51 @@ function addMember(){
 }
 
 
+// ==== GESTION LISTE DE COURSES ====
+async function flushSheet(mode){
+  if(!_googleToken){toast("Connectez Google Drive d abord");return;}
+  var statusEl = document.getElementById("flushStatus");
+  var linkEl = document.getElementById("sheetLink");
+  statusEl.textContent = "Nettoyage en cours...";
+  statusEl.style.color = "var(--am)";
+  try{
+    var resp = await fetch("https://famille-healthy-api.rofes-julien.workers.dev/sheets",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+_googleToken},
+      body:JSON.stringify({action:"flushSheet", mode:mode})
+    });
+    var result = await resp.json();
+    if(result.ok){
+      statusEl.textContent = result.message || "Liste nettoyee !";
+      statusEl.style.color = "var(--gr)";
+      if(result.sheetUrl){
+        linkEl.style.display = "block";
+        linkEl.href = result.sheetUrl;
+      }
+    } else {
+      statusEl.textContent = "Erreur: "+(result.error||"");
+      statusEl.style.color = "var(--rd)";
+    }
+  }catch(e){
+    statusEl.textContent = "Erreur: "+e.message;
+    statusEl.style.color = "var(--rd)";
+  }
+}
+
+function flushChecked(){
+  if(!_googleToken){toast("Connectez Google Drive d abord");return;}
+  if(confirm("Effacer tous les articles coches (TRUE) de la liste de courses ?")){
+    flushSheet("checked");
+  }
+}
+
+function flushAll(){
+  if(!_googleToken){toast("Connectez Google Drive d abord");return;}
+  if(confirm("Effacer TOUTE la liste de courses (ingredients ET recettes) ?")){
+    flushSheet("all");
+  }
+}
+
 // ==== VALIDATION SUBSTITUTIONS ====
 function openSubsModal(){
   var data = convertedAnalysis;
@@ -1816,18 +1884,34 @@ function confirmSubs(){
 
 // ==== CATEGORISATION INGREDIENTS ====
 function categorizeIngredient(ing){
-  var nom = (ing.nom||ing.sub||ing.original||"").toLowerCase();
-  var tag = (ing.tag_ingredient||"").toLowerCase();
-  if(ing.est_viande||ing.est_poisson||tag==="viande"||tag==="poisson"||tag==="charcuterie"||tag==="fruit de mer"){
+  var nom = (ing.nom||ing.sub||ing.original||"").toLowerCase().trim();
+  var tag = (ing.tag_ingredient||"").toLowerCase().trim();
+
+  // 1. BOUCHERIE : viandes, poissons, fruits de mer
+  if(ing.est_viande||ing.est_poisson||
+     tag==="viande"||tag==="poisson"||tag==="charcuterie"||tag==="fruit de mer"||
+     /^(poulet|filet de poulet|blanc de poulet|boeuf|porc|veau|agneau|dinde|lapin|canard|jambon|lardons|bacon|saumon|thon|cabillaud|crevette|moule|sardine|anchois|merlan|lieu)/.test(nom)){
     return "Boucherie";
   }
-  if((tag==="legume"||tag==="fruit"||tag==="herbe"||tag==="herbe aromatique"||tag==="legume aromate"||tag==="aromate") &&
+
+  // 2. CONDIMENTS : sauces, epices, matieres grasses, assaisonnements
+  if(tag==="condiment"||tag==="epice"||tag==="sauce"||tag==="assaisonnement"||tag==="aromate sec"||
+     tag==="matiere grasse"||tag==="huile"||tag==="panure"||tag==="farine"||
+     /^(sel|poivre|moutarde|vinaigre|sauce soja|sauce worcester|tabasco|ketchup|mayonnaise|huile|beurre|margarine|sucre|miel|sirop|farine|maizena|levure|bicarbonate|cannelle|curcuma|paprika|cumin|coriandre en poudre|gingembre en poudre|curry|herbes de provence|bouquet garni|bouillon|concentre de tomate|coulis|laurier|thym sec|romarin sec|basilic sec|oregano|muscade|clou de girofle|piment|harissa|tahini|tamari|miso|vinaigre balsamique|vinaigre de riz|creme balsamique|chapelure|panko|fecule)/.test(nom)){
+    return "Condiments";
+  }
+
+  // 3. PRIMEUR : fruits, legumes frais, herbes fraiches
+  if((tag==="legume"||tag==="fruit"||tag==="herbe"||tag==="herbe aromatique"||
+      tag==="legume aromate"||tag==="aromate") &&
      !/(lentille|pois chiche|haricot|feve|soja|tofu|seitan|tempeh)/.test(nom)){
     return "Primeur";
   }
-  if(/^(tomate|carotte|courgette|aubergine|poivron|oignon|ail|echalote|pomme|poire|banane|citron|orange|salade|epinard|brocoli|chou|poireau|navet|radis|champignon|basilic|persil|thym|romarin|coriandre|menthe|laurier|ciboulette|pomme de terre|patate douce)/.test(nom)){
+  if(/^(tomate|carotte|courgette|aubergine|poivron|oignon|ail|echalote|pomme|poire|banane|citron|orange|salade|epinard|brocoli|chou|poireau|navet|radis|champignon|basilic frais|persil frais|ciboulette|menthe|pomme de terre|patate douce|avocat|concombre|celeri|fenouil|asperge|artichaut|roquette|mache|haricot vert|petit pois|betterave|potiron|courge|fraise|framboise|myrtille|cerise|peche|abricot|mangue|ananas|kiwi|raisin)/.test(nom)){
     return "Primeur";
   }
+
+  // 4. SUPERMARCHE : laitages, fromages, oeufs, feculents, legumineuses...
   return "Supermarche";
 }
 
@@ -1888,30 +1972,54 @@ function openShoppingModal(mode){
   // Remplir la liste des ingredients
   var ings = (data.ingredients||[]).filter(function(i){return !i.supprime});
   var html = "";
-  var groups = {Boucherie:[],Primeur:[],Supermarche:[]};
+  // Calcul du ratio famille / portions recette
+  var servings = (data.recipe && data.recipe.servings) || 4;
+  var familySize = getFamille().length || 5;
+  var scalingRatio = familySize / servings;
+
+  var groups = {Boucherie:[],Primeur:[],Supermarche:[],Condiments:[]};
   ings.forEach(function(ing){
     var cat = categorizeIngredient(ing);
     ing._cat = cat;
+    // Adapter la quantite a la taille de la famille
+    var rawQty = parseFloat(ing.sub_qty||ing.quantite||ing.qty||0);
+    var unit = ing.sub_unit||ing.unite||ing.unit||"";
+    var scaledQty = Math.round(rawQty * scalingRatio * 10) / 10;
+    // Convertir g->kg ou ml->l si > 1000
+    if(unit==="g" && scaledQty>=1000){ scaledQty=Math.round(scaledQty/100)/10; unit="kg"; }
+    if(unit==="ml" && scaledQty>=1000){ scaledQty=Math.round(scaledQty/100)/10; unit="l"; }
+    ing._scaled_qty = scaledQty;
+    ing._scaled_unit = unit;
     groups[cat].push(ing);
   });
-  var colors = {Boucherie:"var(--rd)",Primeur:"var(--gr)",Supermarche:"var(--bl)"};
+  var colors = {Boucherie:"var(--rd)",Primeur:"var(--gr)",Supermarche:"var(--bl)",Condiments:"var(--am)"};
   Object.keys(groups).forEach(function(cat){
     if(!groups[cat].length) return;
     html += "<div style='font-size:11px;font-weight:500;color:"+colors[cat]+";text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px'>"+cat+"</div>";
     groups[cat].forEach(function(ing,i){
       var nom = ing.sub||ing.nom||ing.original||"";
-      var qty = ing.sub_qty||ing.quantite||ing.qty||0;
-      var unit = ing.sub_unit||ing.unite||ing.unit||"";
+      var qty = ing._scaled_qty || ing.sub_qty||ing.quantite||ing.qty||0;
+      var unit = ing._scaled_unit || ing.sub_unit||ing.unite||ing.unit||"";
+      var origQty = parseFloat(ing.sub_qty||ing.quantite||ing.qty||0);
+      var origUnit = ing.sub_unit||ing.unite||ing.unit||"";
       var id = "shop_"+cat+"_"+i;
+      var scaledLabel = (scalingRatio !== 1) ?
+        "<span style='font-size:10px;color:var(--tx3);margin-left:4px'>(recette:"+origQty+origUnit+")</span>" : "";
       html += "<label style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd);cursor:pointer'>"+
         "<input type='checkbox' id='"+id+"' checked style='width:16px;height:16px;cursor:pointer' "+
         "data-nom='"+nom+"' data-qty='"+qty+"' data-unit='"+unit+"' data-cat='"+cat+"' "+
         "data-original='"+(ing.original||ing.nom||"")+"' data-sub='"+(ing.sub||"")+"'/>"+
         "<span style='flex:1;font-size:13px'>"+nom+"</span>"+
-        "<span style='font-size:12px;color:var(--tx2)'>"+qty+" "+unit+"</span>"+
+        "<span style='font-size:12px;color:var(--tx2)'>"+qty+" "+unit+scaledLabel+"</span>"+
         "</label>";
     });
   });
+  // Ajouter info scaling si ratio != 1
+  if(Math.abs(scalingRatio - 1) > 0.05) {
+    html = "<div style='font-size:12px;background:var(--bll);border:1px solid rgba(30,64,175,.15);border-radius:6px;padding:8px 10px;margin-bottom:10px;color:var(--bl)'>"+
+      "Quantites adaptees pour "+familySize+" personnes (recette originale : "+servings+" pers.)"+
+      "</div>" + html;
+  }
   document.getElementById("shoppingIngList").innerHTML = html;
   openModal("shoppingModal");
 }
@@ -1993,6 +2101,44 @@ function confirmShoppingDrive(){
 }
 
 
+async function confirmShoppingForce(){
+  // Re-envoyer avec forceAdd=true
+  var data = convertedAnalysis||originalAnalysis;
+  if(!data||!_googleToken) return;
+  var statusEl = document.getElementById("shoppingStatus");
+  var linkEl = document.getElementById("shoppingLink");
+  statusEl.textContent = "Ajout force en cours...";
+  statusEl.style.color = "var(--am)";
+  var ingredients = getCheckedIngredients();
+  var subs = (data.ingredients||[]).filter(function(i){return i.sub&&!i.supprime;})
+    .map(function(i){return {original:i.original||i.nom,sub:i.sub,reason:i.reason};});
+  var r = data.recipe||{};
+  try{
+    var resp = await fetch("https://famille-healthy-api.rofes-julien.workers.dev/sheets",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+_googleToken},
+      body:JSON.stringify({
+        action:"addIngredients", ingredients:ingredients,
+        recipeTitle:r.title||"Recette", recipeUrl:r.original_url||"",
+        substitutions:subs, forceAdd:true
+      })
+    });
+    var result = await resp.json();
+    if(result.ok){
+      statusEl.textContent = ingredients.length+" ingredient(s) ajoutes !";
+      statusEl.style.color = "var(--gr)";
+      linkEl.style.display = "block";
+      linkEl.href = result.sheetUrl;
+    } else {
+      statusEl.textContent = "Erreur: "+(result.error||"");
+      statusEl.style.color = "var(--rd)";
+    }
+  }catch(e){
+    statusEl.textContent = "Erreur: "+e.message;
+    statusEl.style.color = "var(--rd)";
+  }
+}
+
 async function confirmShoppingSheets(){
   var data = convertedAnalysis||originalAnalysis;
   if(!data||!_googleToken) return;
@@ -2022,7 +2168,12 @@ async function confirmShoppingSheets(){
       })
     });
     var result = await resp.json();
-    if(result.ok){
+    if(result.alreadyPlanned){
+      // Recette deja dans la liste - demander confirmation
+      statusEl.style.color = "var(--am)";
+      statusEl.innerHTML = result.recipeTitle + " est deja dans votre liste de courses.<br>"+
+        "<button class='btn btnsm btnp' style='margin-top:8px' onclick='confirmShoppingForce()'>Ajouter quand meme</button>";
+    } else if(result.ok){
       statusEl.textContent = ingredients.length+" ingredient(s) ajoutes !";
       statusEl.style.color = "var(--gr)";
       linkEl.style.display = "block";
