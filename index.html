@@ -1924,10 +1924,9 @@ function adjustGuests(delta){
 function recalcShoppingScaling(){
   var data = window._shoppingData;
   if(!data) return;
-  var newServings = data.recipeServings || 4;
-
+  var newServings = data.recipeServings || 1;
   var defaultMults = [1.35, 1.0, 1.1, 0.82, 0.62];
-  var fam = window._shoppingData ? (window._shoppingData.famille || []) : [];
+  var fam = data.famille || [];
 
   // Membres presents ce soir
   var presentEquiv = 0;
@@ -1952,7 +1951,7 @@ function recalcShoppingScaling(){
   var totalEquiv = presentEquiv + leftoverEquiv + guests;
   var ratio = totalEquiv / newServings;
 
-  // Stocker pour usage lors de l ajout au sheet
+  // Stocker le contexte
   window._shoppingContext = {
     presentNames: presentNames,
     leftoverNames: leftoverNames,
@@ -1961,19 +1960,20 @@ function recalcShoppingScaling(){
     recipeServings: newServings
   };
 
-  // Info
+  // Mettre a jour le label info (sans reconstruire toute l UI)
   var info = document.getElementById("scalingInfo");
   if(info){
-    var label = presentNames.join(", ") || "personne";
+    var label = presentNames.length ? presentNames.join(", ") : "Personne";
     if(leftoverNames.length) label += " + restes: "+leftoverNames.join(", ");
     if(guests > 0) label += " + "+guests+" invite(s)";
-    label += "  x"+ratio.toFixed(2);
+    label += "  x"+ratio.toFixed(2)+" vs recette";
     info.textContent = label;
   }
 
-  // Recalculer et rerendre la liste
+  // Recalculer et rerendre les ingredients
+  var colors = {Boucherie:"var(--rd)",Primeur:"var(--gr)",Supermarche:"var(--bl)",Condiments:"var(--am)"};
   var groups = {Boucherie:[],Primeur:[],Supermarche:[],Condiments:[]};
-  data.ings.forEach(function(ing){
+  (data.ings||[]).forEach(function(ing){
     var cat = categorizeIngredient(ing);
     var rawQty = parseFloat(ing.sub_qty||ing.quantite||ing.qty||0);
     var unit = ing.sub_unit||ing.unite||ing.unit||"";
@@ -1986,11 +1986,14 @@ function recalcShoppingScaling(){
     groups[cat].push(ing);
   });
 
-  var colors = {Boucherie:"var(--rd)",Primeur:"var(--gr)",Supermarche:"var(--bl)",Condiments:"var(--am)"};
   var html = "";
+  if(Math.abs(ratio-1) > 0.05){
+    html += "<div style='font-size:12px;background:var(--bll);border:1px solid rgba(30,64,175,.15);border-radius:6px;padding:6px 10px;margin-bottom:8px;color:var(--bl)'>" +
+      "Quantites adaptees (x"+ratio.toFixed(2)+")</div>";
+  }
   Object.keys(groups).forEach(function(cat){
     if(!groups[cat].length) return;
-    html += "<div style='font-size:11px;font-weight:500;color:"+colors[cat]+";text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px'>"+cat+"</div>";
+    html += "<div style='font-size:11px;font-weight:500;color:"+colors[cat]+";text-transform:uppercase;letter-spacing:.05em;margin:10px 0 5px'>"+cat+"</div>";
     groups[cat].forEach(function(ing,i){
       var nom = ing.sub||ing.nom||ing.original||"";
       var qty = ing._scaled_qty;
@@ -2007,418 +2010,10 @@ function recalcShoppingScaling(){
         "data-original='"+(ing.original||ing.nom||"").replace(/'/g,"&apos;")+"' data-sub='"+(ing.sub||"").replace(/'/g,"&apos;")+"'/>"+
         "<span style='flex:1;font-size:13px'>"+nom+"</span>"+
         "<span style='font-size:12px;color:var(--tx2)'>"+qty+" "+unit+
-        (ratio!==1?"<span style='font-size:10px;color:var(--tx3);margin-left:4px'>("+origQty+origUnit+")</span>":"")+
+        (Math.abs(ratio-1)>0.05?"<span style='font-size:10px;color:var(--tx3);margin-left:4px'>("+origQty+origUnit+")</span>":"")+
         "</span>"+
         "</label>";
     });
   });
   document.getElementById("shoppingIngList").innerHTML = html;
 }
-
-// ==== CATEGORISATION INGREDIENTS ====
-function categorizeIngredient(ing){
-  var nom = (ing.nom||ing.sub||ing.original||"").toLowerCase().trim();
-  var tag = (ing.tag_ingredient||"").toLowerCase().trim().replace(/_/g," ");
-
-  // 1. BOUCHERIE : viandes, poissons, fruits de mer
-  if(ing.est_viande||ing.est_poisson||
-     tag==="viande"||tag==="poisson"||tag==="charcuterie"||tag==="fruit de mer"||
-     /^(poulet|filet de poulet|blanc de poulet|boeuf|porc|veau|agneau|dinde|lapin|canard|jambon|lardons|bacon|saumon|thon|cabillaud|crevette|moule|sardine|anchois|merlan|lieu)/.test(nom)){
-    return "Boucherie";
-  }
-
-  // 2. PRIMEUR : fruits, legumes frais, herbes fraiches - AVANT condiments car oignon/ail peuvent matcher
-  // Liste des herbes qui sont en realite des condiments/epices seches
-  var condimentHerbs = /^(persillade|fines herbes|herbes de provence|bouquet garni|thym sec|romarin sec|basilic sec|oregano|laurier|coriandre moulue|cumin|curry|paprika|piment|muscade|cannelle|gingembre)/.test(nom);
-  if((tag==="legume"||tag==="fruit"||tag==="herbe"||tag==="herbe aromatique"||
-      tag==="legume aromate"||tag==="aromate") &&
-     !/(lentille|pois chiche|haricot|feve|soja|tofu|seitan|tempeh)/.test(nom) &&
-     !condimentHerbs){
-    return "Primeur";
-  }
-  if(/^(tomate|carotte|courgette|aubergine|poivron|oignon|ail|echalote|pomme|poire|banane|citron|orange|salade|epinard|brocoli|chou|poireau|navet|radis|champignon|basilic frais|persil frais|ciboulette|menthe fraiche|pomme de terre|patate douce|avocat|concombre|celeri|fenouil|asperge|artichaut|roquette|mache|haricot vert|petit pois|betterave|potiron|courge|fraise|framboise|myrtille|cerise|peche|abricot|mangue|ananas|kiwi|raisin|poireau|courgette|brocoli)/.test(nom)){
-    return "Primeur";
-  }
-
-  // 3. CONDIMENTS : sauces, epices, matieres grasses, assaisonnements
-  if(tag==="condiment"||tag==="epice"||tag==="sauce"||tag==="assaisonnement"||tag==="aromate sec"||
-     tag==="matiere grasse"||tag==="huile"||tag==="panure"||tag==="farine"||
-     /^(sel|poivre|moutarde|vinaigre|sauce soja|sauce worcester|tabasco|ketchup|mayonnaise|huile|beurre|margarine|sucre|miel|sirop|farine|maizena|levure|bicarbonate|cannelle|curcuma|paprika|cumin|coriandre en poudre|gingembre en poudre|curry|herbes de provence|persillade|bouquet garni|bouillon|concentre de tomate|coulis|laurier|thym sec|romarin sec|basilic sec|oregano|muscade|clou de girofle|piment|harissa|tahini|tamari|miso|vinaigre balsamique|vinaigre de riz|creme balsamique|chapelure|panko|fecule)/.test(nom)){
-    return "Condiments";
-  }
-
-  // 4. SUPERMARCHE : laitages, fromages, oeufs, feculents, legumineuses...
-  return "Supermarche";
-}
-
-// ==== MODAL LISTE DE COURSES / PANIER DRIVE ====
-var _shoppingMode = "sheets"; // "sheets" ou "drive"
-var DRIVES = {
-  leclerc:    {name:"Leclerc Drive",    url:"https://www.leclercdrive.fr"},
-  carrefour:  {name:"Carrefour Drive",  url:"https://www.carrefour.fr/drive"},
-  auchan:     {name:"Auchan Drive",     url:"https://www.auchandrive.fr"},
-  intermarche:{name:"Intermarche Drive",url:"https://www.intermarche.com/drive"}
-};
-var _selectedDrive = "leclerc";
-
-function openShoppingModal(mode){
-  var data = convertedAnalysis||originalAnalysis;
-  if(!data){toast("Analysez d abord une recette");return;}
-  _shoppingMode = mode||"sheets";
-
-  var titleEl = document.getElementById("shoppingTitle");
-  var descEl = document.getElementById("shoppingDesc");
-  var btnEl = document.getElementById("shoppingConfirmBtn");
-  var driveEl = document.getElementById("shoppingDrivePrompt");
-  var linkEl = document.getElementById("shoppingLink");
-  var statusEl = document.getElementById("shoppingStatus");
-
-  if(mode === "drive"){
-    titleEl.textContent = "Panier Drive";
-    descEl.innerHTML = "Selectionnez les ingredients et choisissez votre drive.";
-    // Boutons drive rendus apres insertion DOM
-    setTimeout(function(){
-      var desc = document.getElementById("shoppingDesc");
-      if(desc){
-        var row = document.createElement("div");
-        row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:8px";
-        Object.keys(DRIVES).forEach(function(k){
-          var btn = document.createElement("button");
-          btn.className = "btn btnsm "+(k===_selectedDrive?"btnp":"btns");
-          btn.id = "drivebtn_"+k;
-          btn.textContent = DRIVES[k].name;
-          btn.addEventListener("click", function(){ selectDrive(k); });
-          row.appendChild(btn);
-        });
-        desc.appendChild(row);
-      }
-    }, 50);
-    btnEl.textContent = "Generer le prompt Drive";
-  } else {
-    if(!_googleToken){toast("Connectez Google Drive dans l onglet Historique");return;}
-    titleEl.textContent = "Liste de courses";
-    descEl.textContent = "Selectionnez les ingredients a ajouter dans Google Sheets.";
-    btnEl.textContent = "Ajouter dans Google Sheets";
-  }
-
-  driveEl.style.display = "none";
-  linkEl.style.display = "none";
-  statusEl.textContent = "";
-
-  // Remplir la liste des ingredients
-  var ings = (data.ingredients||[]).filter(function(i){return !i.supprime});
-  var html = "";
-  // Calcul du ratio famille / portions recette
-  // On utilise la somme des multiplicateurs de portions (equivalents adultes)
-  // plutot que le simple nombre de membres
-  var servings = (data.recipe && data.recipe.servings) || 4;
-  var defaultMults = [1.35, 1.0, 1.1, 0.82, 0.62];
-  var familyMults = getFamille().map(function(m, i){ return defaultMults[i] || 1.0; });
-  var familyEquiv = familyMults.reduce(function(s, m){ return s + m; }, 0);
-  var familySize = getFamille().length || 5;
-  var scalingRatio = familyEquiv / servings;
-
-  var groups = {Boucherie:[],Primeur:[],Supermarche:[],Condiments:[]};
-  ings.forEach(function(ing){
-    var cat = categorizeIngredient(ing);
-    ing._cat = cat;
-    // Adapter la quantite a la taille de la famille
-    var rawQty = parseFloat(ing.sub_qty||ing.quantite||ing.qty||0);
-    var unit = ing.sub_unit||ing.unite||ing.unit||"";
-    var scaledQty = Math.round(rawQty * scalingRatio * 10) / 10;
-    // Convertir g->kg ou ml->l si > 1000
-    if(unit==="g" && scaledQty>=1000){ scaledQty=Math.round(scaledQty/100)/10; unit="kg"; }
-    if(unit==="ml" && scaledQty>=1000){ scaledQty=Math.round(scaledQty/100)/10; unit="l"; }
-    ing._scaled_qty = scaledQty;
-    ing._scaled_unit = unit;
-    groups[cat].push(ing);
-  });
-  var colors = {Boucherie:"var(--rd)",Primeur:"var(--gr)",Supermarche:"var(--bl)",Condiments:"var(--am)"};
-  Object.keys(groups).forEach(function(cat){
-    if(!groups[cat].length) return;
-    html += "<div style='font-size:11px;font-weight:500;color:"+colors[cat]+";text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px'>"+cat+"</div>";
-    groups[cat].forEach(function(ing,i){
-      var nom = ing.sub||ing.nom||ing.original||"";
-      var qty = ing._scaled_qty || ing.sub_qty||ing.quantite||ing.qty||0;
-      var unit = ing._scaled_unit || ing.sub_unit||ing.unite||ing.unit||"";
-      var origQty = parseFloat(ing.sub_qty||ing.quantite||ing.qty||0);
-      var origUnit = ing.sub_unit||ing.unite||ing.unit||"";
-      var id = "shop_"+cat+"_"+i;
-      var scaledLabel = (scalingRatio !== 1) ?
-        "<span style='font-size:10px;color:var(--tx3);margin-left:4px'>(recette:"+origQty+origUnit+")</span>" : "";
-      html += "<label style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd);cursor:pointer'>"+
-        "<input type='checkbox' id='"+id+"' checked style='width:16px;height:16px;cursor:pointer' "+
-        "data-nom='"+nom.replace(/'/g,'&apos;')+"' data-qty='"+qty+"' data-unit='"+unit+"' data-cat='"+cat+"' "+
-        "data-original='"+(ing.original||ing.nom||"").replace(/'/g,'&apos;')+"' data-sub='"+(ing.sub||"").replace(/'/g,'&apos;')+"'/>"+
-        "<span style='flex:1;font-size:13px'>"+nom+"</span>"+
-        "<span style='font-size:12px;color:var(--tx2)'>"+qty+" "+unit+scaledLabel+"</span>"+
-        "</label>";
-    });
-  });
-  // Ajouter info scaling si ratio != 1
-  if(Math.abs(scalingRatio - 1) > 0.05) {
-    html = "<div style='font-size:12px;background:var(--bll);border:1px solid rgba(30,64,175,.15);border-radius:6px;padding:8px 10px;margin-bottom:10px;color:var(--bl)'>"+
-      "Quantites adaptees pour "+familySize+" personnes (recette originale : "+servings+" pers.)"+
-      "</div>" + html;
-  }
-  document.getElementById("shoppingIngList").innerHTML = html;
-
-  // Construire l UI portions + restes
-  var servingsInfo = document.getElementById("shoppingServingsInfo");
-  if(servingsInfo){
-    var membersHtml = getFamille().map(function(m, i){
-      return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">'+
-        '<input type="checkbox" class="leftover-cb" data-idx="'+i+'" onchange="recalcShoppingScaling()" '+
-        'style="width:14px;height:14px;cursor:pointer"/>'+
-        '<span>'+m.name+'</span>'+
-        '</label>';
-    }).join('');
-    var presentHtml = getFamille().map(function(m, i){
-      return '<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">'+
-        '<input type="checkbox" class="present-cb" data-idx="'+i+'" checked onchange="recalcShoppingScaling()" '+
-        'style="width:14px;height:14px;cursor:pointer"/>'+
-        '<span>'+m.name+'</span>'+
-        '</label>';
-    }).join('');
-
-    servingsInfo.innerHTML =
-      '<div style="padding:10px;background:var(--bll);border:1px solid rgba(30,64,175,.15);border-radius:6px;margin-bottom:12px">'+
-        '<div style="font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:6px">Qui mange ce soir ?</div>'+
-        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(30,64,175,.15)">'+presentHtml+'</div>'+
-        '<div style="font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:6px">Restes pour :</div>'+
-        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(30,64,175,.15)">'+membersHtml+'</div>'+
-        '<div style="display:flex;align-items:center;gap:8px">'+
-          '<span style="font-size:11px;font-weight:500;color:var(--tx2);flex:1">Invites</span>'+
-          '<div style="display:flex;align-items:center;gap:4px">'+
-            '<button onclick="adjustGuests(-1)" style="width:22px;height:22px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer;font-size:13px">-</button>'+
-            '<input type="number" id="guestsInput" value="0" min="0" max="20" '+
-              'style="width:32px;text-align:center;border:1px solid var(--bd);border-radius:4px;padding:1px 0;font-size:12px" '+
-              'onchange="recalcShoppingScaling()"/>'+
-            '<button onclick="adjustGuests(1)" style="width:22px;height:22px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer;font-size:13px">+</button>'+
-          '</div>'+
-        '</div>'+
-        '<div id="scalingInfo" style="font-size:11px;color:var(--tx3);margin-top:6px;font-weight:500"></div>'+
-      '</div>';
-  }
-  // Stocker les donnees brutes pour recalcul
-  window._shoppingData = {ings: ings, familySize: familySize, familyEquiv: familyEquiv, mode: _shoppingMode, recipeServings: servings, famille: getFamille()};
-  openModal("shoppingModal");
-  // Attendre que le DOM soit rendu avant de calculer
-  setTimeout(function(){ recalcShoppingScaling(); }, 50);
-}
-
-function selectDrive(key){
-  _selectedDrive = key;
-  Object.keys(DRIVES).forEach(function(k){
-    var btn = document.getElementById("drivebtn_"+k);
-    if(btn){ btn.className = "btn btnsm "+(k===key?"btnp":"btns"); }
-  });
-}
-
-function getCheckedIngredients(){
-  var checked = document.querySelectorAll("#shoppingIngList input[type=checkbox]:checked");
-  var ingredients = [];
-  checked.forEach(function(cb){
-    ingredients.push({
-      nom: cb.dataset.nom,
-      quantite: parseFloat(cb.dataset.qty)||0,
-      unite: cb.dataset.unit,
-      categorie: cb.dataset.cat,
-      original: cb.dataset.original,
-      sub: cb.dataset.sub
-    });
-  });
-  return ingredients;
-}
-
-async function confirmShopping(){
-  if(_shoppingMode === "drive"){
-    confirmShoppingDrive();
-  } else {
-    await confirmShoppingSheets();
-  }
-}
-
-function confirmShoppingDrive(){
-  var data = convertedAnalysis||originalAnalysis;
-  if(!data) return;
-  var ingredients = getCheckedIngredients();
-  if(!ingredients.length){toast("Aucun ingredient selectionne");return;}
-
-  var drive = DRIVES[_selectedDrive];
-  var r = data.recipe||{};
-  var cartLines = ingredients.map(function(i){
-    return "  - " + i.nom + " | " + i.quantite + " " + i.unite;
-  }).join("\n");
-
-  var lines = [
-    "Tu es un agent navigateur. Je suis connecte a " + drive.name + " (" + drive.url + ").",
-    "Ajoute ces produits a mon panier un par un :",
-    "",
-    "RECETTE : " + (r.title||""),
-    cartLines,
-    "",
-    "Pour chaque produit :",
-    "1. Recherche dans la barre de recherche",
-    "2. Selectionne le plus pertinent (prefere BIO si ecart < 30%)",
-    "3. Regle la quantite exacte",
-    "4. Clique Ajouter au panier",
-    "5. Passe au suivant",
-    "",
-    "Ne valide PAS la commande - laisse le panier ouvert.",
-    "Resume final : X produits ajoutes | manquants eventuels | total affiche"
-  ];
-  var prompt = lines.join("\n");
-
-  document.getElementById("shoppingPromptBox").textContent = prompt;
-  document.getElementById("shoppingDrivePrompt").style.display = "block";
-  document.getElementById("shoppingConfirmBtn").style.display = "none";
-  document.getElementById("shoppingStatus").textContent = "Copiez le prompt et collez-le dans Claude in Chrome.";
-  document.getElementById("shoppingStatus").style.color = "var(--bl)";
-
-  if(navigator.clipboard){
-    navigator.clipboard.writeText(prompt).then(function(){
-      toast("Prompt copie ! Collez-le dans Claude in Chrome.");
-    }).catch(function(){});
-  }
-}
-
-
-async function confirmShoppingForce(){
-  // Re-envoyer avec forceAdd=true
-  var data = convertedAnalysis||originalAnalysis;
-  if(!data||!_googleToken) return;
-  var statusEl = document.getElementById("shoppingStatus");
-  var linkEl = document.getElementById("shoppingLink");
-  statusEl.textContent = "Ajout force en cours...";
-  statusEl.style.color = "var(--am)";
-  var ingredients = getCheckedIngredients();
-  var subs = (data.ingredients||[]).filter(function(i){return i.sub&&!i.supprime;})
-    .map(function(i){return {original:i.original||i.nom,sub:i.sub,reason:i.reason};});
-  var r = data.recipe||{};
-  try{
-    var resp = await fetch("https://famille-healthy-api.rofes-julien.workers.dev/sheets",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+_googleToken},
-      body:JSON.stringify({
-        action:"addIngredients", ingredients:ingredients,
-        recipeTitle:r.title||"Recette", recipeUrl:r.original_url||"",
-        substitutions:subs, forceAdd:true
-      })
-    });
-    var result = await resp.json();
-    if(result.ok){
-      statusEl.textContent = ingredients.length+" ingredient(s) ajoutes !";
-      statusEl.style.color = "var(--gr)";
-      linkEl.style.display = "block";
-      linkEl.href = result.sheetUrl;
-    } else {
-      statusEl.textContent = "Erreur: "+(result.error||"");
-      statusEl.style.color = "var(--rd)";
-    }
-  }catch(e){
-    statusEl.textContent = "Erreur: "+e.message;
-    statusEl.style.color = "var(--rd)";
-  }
-}
-
-async function confirmShoppingSheets(){
-  var data = convertedAnalysis||originalAnalysis;
-  if(!data||!_googleToken) return;
-  var statusEl = document.getElementById("shoppingStatus");
-  var linkEl = document.getElementById("shoppingLink");
-  statusEl.textContent = "Ajout en cours dans Google Sheets...";
-  statusEl.style.color = "var(--am)";
-
-  var ingredients = getCheckedIngredients();
-  if(!ingredients.length){toast("Aucun ingredient selectionne");return;}
-
-  var subs = (data.ingredients||[])
-    .filter(function(i){return i.sub&&!i.supprime;})
-    .map(function(i){return {original:i.original||i.nom,sub:i.sub,reason:i.reason};});
-  var r = data.recipe||{};
-
-  try{
-      var ctx = window._shoppingContext || {};
-      // Quantites recommandees par personne presente
-      var portionsDetail = [];
-      var fam = getFamille();
-      var defaultMults = [1.35,1.0,1.1,0.82,0.62];
-      var srv = (data.recipe && data.recipe.servings) || 1;
-      (ctx.presentNames||[]).forEach(function(name){
-        var idx = fam.findIndex(function(m){return m.name===name;});
-        if(idx<0) return;
-        var mult = defaultMults[idx]||1.0;
-        var grammage = calcPortionWeight(data.ingredients, mult, srv);
-        var kcal = Math.round((data.kcal_par_personne||0) * mult);
-        portionsDetail.push(name+": "+grammage+"g / "+kcal+"kcal");
-      });
-    var resp = await fetch("https://famille-healthy-api.rofes-julien.workers.dev/sheets",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+_googleToken},
-      body:JSON.stringify({
-        action:"addIngredients",
-        ingredients:ingredients,
-        recipeTitle:r.title||"Recette",
-        recipeUrl:r.original_url||"",
-        substitutions:subs,
-        presentNames: ctx.presentNames||[],
-        leftoverNames: ctx.leftoverNames||[],
-        guests: ctx.guests||0,
-        ratio: ctx.ratio||1,
-        portionsDetail: portionsDetail
-      })
-    });
-    var result = await resp.json();
-    if(result.alreadyPlanned){
-      // Recette deja dans la liste - demander confirmation
-      statusEl.style.color = "var(--am)";
-      statusEl.innerHTML = result.recipeTitle + " est deja dans votre liste de courses.<br>"+
-        "<button class='btn btnsm btnp' style='margin-top:8px' onclick='confirmShoppingForce()'>Ajouter quand meme</button>";
-    } else if(result.ok){
-      statusEl.textContent = ingredients.length+" ingredient(s) ajoutes !";
-      statusEl.style.color = "var(--gr)";
-      linkEl.style.display = "block";
-      linkEl.href = result.sheetUrl;
-      var existing = getRecipes().find(function(rx){
-        return rx.url===(r.original_url||"")&&rx.context===(convertedAnalysis?"converted":"original");
-      });
-      if(!existing){
-        try{ saveCtx(convertedAnalysis?"converted":"original"); } catch(e){}
-      }
-    } else {
-      statusEl.textContent = "Erreur: "+(result.error||"inconnue");
-      statusEl.style.color = "var(--rd)";
-    }
-  }catch(e){
-    statusEl.textContent = "Erreur: "+e.message;
-    statusEl.style.color = "var(--rd)";
-  }
-}
-
-// ==== CATEGORISATION INGREDIENTS ====
-
-// ==== MODAL LISTE DE COURSES ====
-
-
-// ==== UTILS ====
-function openModal(id){document.getElementById(id).classList.add("open")}
-function closeModal(id){document.getElementById(id).classList.remove("open")}
-function toast(msg){var t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(function(){t.classList.remove("show")},2800)}
-function copyText(text, msg){
-  if(navigator.clipboard && location.protocol !== "file:"){
-    navigator.clipboard.writeText(text).then(function(){toast(msg||"Copie !")}).catch(function(){fbCopy(text,msg)});
-  } else {
-    fbCopy(text, msg);
-  }
-}
-function fbCopy(text, msg){
-  var ta=document.createElement("textarea");ta.value=text;
-  ta.style.cssText="position:fixed;left:-9999px;top:0;opacity:0";
-  document.body.appendChild(ta);ta.focus();ta.select();
-  try{document.execCommand("copy");toast(msg||"Copie !")}catch(e){toast("Copiez manuellement")}
-  document.body.removeChild(ta);
-}
-</script>
-</body>
-</html>
