@@ -2340,6 +2340,19 @@ async function confirmShoppingSheets(){
 
   try{
       var ctx = window._shoppingContext || {};
+      // Quantites recommandees par personne presente
+      var portionsDetail = [];
+      var fam = getFamille();
+      var defaultMults = [1.35,1.0,1.1,0.82,0.62];
+      var srv = (data.recipe && data.recipe.servings) || 1;
+      (ctx.presentNames||[]).forEach(function(name){
+        var idx = fam.findIndex(function(m){return m.name===name;});
+        if(idx<0) return;
+        var mult = defaultMults[idx]||1.0;
+        var grammage = calcPortionWeight(data.ingredients, mult, srv);
+        var kcal = Math.round((data.kcal_par_personne||0) * mult);
+        portionsDetail.push(name+": "+grammage+"g / "+kcal+"kcal");
+      });
     var resp = await fetch("https://famille-healthy-api.rofes-julien.workers.dev/sheets",{
       method:"POST",
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+_googleToken},
@@ -2352,7 +2365,8 @@ async function confirmShoppingSheets(){
         presentNames: ctx.presentNames||[],
         leftoverNames: ctx.leftoverNames||[],
         guests: ctx.guests||0,
-        ratio: ctx.ratio||1
+        ratio: ctx.ratio||1,
+        portionsDetail: portionsDetail
       })
     });
     var result = await resp.json();
