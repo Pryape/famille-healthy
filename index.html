@@ -374,12 +374,6 @@ var DEFAULT_FAM = [
   {id:5, name:"Petit 6",   age:6,  gender:"m", weight:22,   height:118, actF:1.55, goal:"growth", pGkg:1.4, deficit:0, tennis:180}
 ];
 var FAM = DEFAULT_FAM.slice(); // sera remplace par les donnees du fichier
-var DRIVES = {
-  leclerc:    {name:"Leclerc Drive",    url:"https://www.leclercdrive.fr"},
-  carrefour:  {name:"Carrefour Drive",  url:"https://www.carrefour.fr/drive"},
-  auchan:     {name:"Auchan Drive",     url:"https://www.auchandrive.fr"},
-  intermarche:{name:"Intermarche Drive",url:"https://www.intermarche.com/drive"}
-};
 function bmr(m){return m.gender==="m"?10*m.weight+6.25*m.height-5*m.age+5:10*m.weight+6.25*m.height-5*m.age-161}
 function tdee(m){return Math.round(bmr(m)*m.actF)+(m.tennis||0)}
 function tkcal(m){return tdee(m)+(m.deficit||0)}
