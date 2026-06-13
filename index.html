@@ -1902,7 +1902,7 @@ function recalcShoppingScaling(){
   var data = window._shoppingData;
   if(!input || !data) return;
   var newServings = parseInt(input.value)||1;
-  var ratio = data.familySize / newServings;
+  var ratio = data.familyEquiv / newServings;
 
   // Recalculer et rerendre la liste
   var groups = {Boucherie:[],Primeur:[],Supermarche:[],Condiments:[]};
@@ -2039,9 +2039,14 @@ function openShoppingModal(mode){
   var ings = (data.ingredients||[]).filter(function(i){return !i.supprime});
   var html = "";
   // Calcul du ratio famille / portions recette
+  // On utilise la somme des multiplicateurs de portions (equivalents adultes)
+  // plutot que le simple nombre de membres
   var servings = (data.recipe && data.recipe.servings) || 4;
+  var defaultMults = [1.35, 1.0, 1.1, 0.82, 0.62];
+  var familyMults = getFamille().map(function(m, i){ return defaultMults[i] || 1.0; });
+  var familyEquiv = familyMults.reduce(function(s, m){ return s + m; }, 0);
   var familySize = getFamille().length || 5;
-  var scalingRatio = familySize / servings;
+  var scalingRatio = familyEquiv / servings;
 
   var groups = {Boucherie:[],Primeur:[],Supermarche:[],Condiments:[]};
   ings.forEach(function(ing){
@@ -2104,7 +2109,7 @@ function openShoppingModal(mode){
       '</div>';
   }
   // Stocker les donnees brutes pour recalcul
-  window._shoppingData = {ings: ings, familySize: familySize, mode: _shoppingMode};
+  window._shoppingData = {ings: ings, familySize: familySize, familyEquiv: familyEquiv, mode: _shoppingMode};
 
   openModal("shoppingModal");
 }
