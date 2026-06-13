@@ -334,6 +334,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);font-
     <div class="mhandle"></div>
     <div class="mtitle" id="shoppingTitle">Ingredients</div>
     <div style="font-size:13px;color:var(--tx2);margin-bottom:14px" id="shoppingDesc">Selectionnez les ingredients.</div>
+    <div id="shoppingServingsInfo"></div>
     <div id="shoppingIngList" style="margin-bottom:16px"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btns btnsm" onclick="closeModal('shoppingModal')">Annuler</button>
@@ -1888,6 +1889,65 @@ function confirmSubs(){
   renderKcal();
 }
 
+function adjustServings(delta){
+  var input = document.getElementById("servingsInput");
+  if(!input) return;
+  var val = parseInt(input.value)||1;
+  input.value = Math.max(1, val + delta);
+  recalcShoppingScaling();
+}
+
+function recalcShoppingScaling(){
+  var input = document.getElementById("servingsInput");
+  var data = window._shoppingData;
+  if(!input || !data) return;
+  var newServings = parseInt(input.value)||1;
+  var ratio = data.familySize / newServings;
+
+  // Recalculer et rerendre la liste
+  var groups = {Boucherie:[],Primeur:[],Supermarche:[],Condiments:[]};
+  data.ings.forEach(function(ing){
+    var cat = categorizeIngredient(ing);
+    var rawQty = parseFloat(ing.sub_qty||ing.quantite||ing.qty||0);
+    var unit = ing.sub_unit||ing.unite||ing.unit||"";
+    var scaledQty = Math.round(rawQty * ratio * 10) / 10;
+    if(unit==="g" && scaledQty>=1000){ scaledQty=Math.round(scaledQty/100)/10; unit="kg"; }
+    if(unit==="ml" && scaledQty>=1000){ scaledQty=Math.round(scaledQty/100)/10; unit="l"; }
+    ing._scaled_qty = scaledQty;
+    ing._scaled_unit = unit;
+    ing._cat = cat;
+    groups[cat].push(ing);
+  });
+
+  var colors = {Boucherie:"var(--rd)",Primeur:"var(--gr)",Supermarche:"var(--bl)",Condiments:"var(--am)"};
+  var html = "";
+  Object.keys(groups).forEach(function(cat){
+    if(!groups[cat].length) return;
+    html += "<div style='font-size:11px;font-weight:500;color:"+colors[cat]+";text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px'>"+cat+"</div>";
+    groups[cat].forEach(function(ing,i){
+      var nom = ing.sub||ing.nom||ing.original||"";
+      var qty = ing._scaled_qty;
+      var unit = ing._scaled_unit;
+      var origQty = parseFloat(ing.sub_qty||ing.quantite||ing.qty||0);
+      var origUnit = ing.sub_unit||ing.unite||ing.unit||"";
+      var id = "shop_"+cat+"_"+i;
+      var prev = document.getElementById(id);
+      var isChecked = prev ? prev.checked : true;
+      html += "<label style='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd);cursor:pointer'>"+
+        "<input type='checkbox' id='"+id+"' "+(isChecked?"checked":"")+
+        " style='width:16px;height:16px;cursor:pointer' "+
+        "data-nom='"+nom.replace(/'/g,"&apos;")+"' data-qty='"+qty+"' data-unit='"+unit+"' data-cat='"+cat+"' "+
+        "data-original='"+(ing.original||ing.nom||"").replace(/'/g,"&apos;")+"' data-sub='"+(ing.sub||"").replace(/'/g,"&apos;")+"'/>"+
+        "<span style='flex:1;font-size:13px'>"+nom+"</span>"+
+        "<span style='font-size:12px;color:var(--tx2)'>"+qty+" "+unit+
+        (ratio!==1?"<span style='font-size:10px;color:var(--tx3);margin-left:4px'>("+origQty+origUnit+")</span>":"")+
+        "</span>"+
+        "</label>";
+    });
+  });
+  document.getElementById("shoppingIngList").innerHTML = html;
+}
+
 // ==== CATEGORISATION INGREDIENTS ====
 function categorizeIngredient(ing){
   var nom = (ing.nom||ing.sub||ing.original||"").toLowerCase().trim();
@@ -2027,6 +2087,25 @@ function openShoppingModal(mode){
       "</div>" + html;
   }
   document.getElementById("shoppingIngList").innerHTML = html;
+
+  // Info portions + correction
+  var servingsInfo = document.getElementById("shoppingServingsInfo");
+  if(servingsInfo){
+    servingsInfo.innerHTML =
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--bll);border-radius:6px;border:1px solid rgba(30,64,175,.15)">'+
+        '<span style="font-size:12px;color:var(--bl);flex:1">Recette pour <strong>'+servings+'</strong> pers. -> adapte pour <strong>'+familySize+'</strong></span>'+
+        '<div style="display:flex;align-items:center;gap:4px">'+
+          '<button onclick="adjustServings(-1)" style="width:24px;height:24px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer;font-size:14px">-</button>'+
+          '<input type="number" id="servingsInput" value="'+servings+'" min="1" max="20" '+
+            'style="width:36px;text-align:center;border:1px solid var(--bd);border-radius:4px;padding:2px 0;font-size:13px" '+
+            'onchange="recalcShoppingScaling()"/>'+
+          '<button onclick="adjustServings(1)" style="width:24px;height:24px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer;font-size:14px">+</button>'+
+        '</div>'+
+      '</div>';
+  }
+  // Stocker les donnees brutes pour recalcul
+  window._shoppingData = {ings: ings, familySize: familySize, mode: _shoppingMode};
+
   openModal("shoppingModal");
 }
 
