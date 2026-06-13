@@ -585,6 +585,11 @@ function startAnalysis(){
   callGeminiWorker(buildAnalyzePrompt(url), url).then(function(result){
     hideAllSteps();
     document.getElementById("step-url").style.display = "block";
+    // Normaliser servings a 4 si absent ou different (norme de l app)
+    if(!result.recipe) result.recipe = {};
+    if(!result.recipe.servings || result.recipe.servings < 1) {
+      result.recipe.servings = 4;
+    }
     originalAnalysis = result;
     convertedAnalysis = null;
     renderOriginalCard(originalAnalysis);
