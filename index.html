@@ -1902,7 +1902,26 @@ function recalcShoppingScaling(){
   var data = window._shoppingData;
   if(!input || !data) return;
   var newServings = parseInt(input.value)||1;
-  var ratio = data.familyEquiv / newServings;
+
+  // Calculer l equiv famille + restes coches
+  var defaultMults = [1.35, 1.0, 1.1, 0.82, 0.62];
+  var baseEquiv = data.familyEquiv;
+  var leftoverEquiv = 0;
+  document.querySelectorAll(".leftover-cb:checked").forEach(function(cb){
+    var idx = parseInt(cb.dataset.idx)||0;
+    leftoverEquiv += defaultMults[idx] || 1.0;
+  });
+  var totalEquiv = baseEquiv + leftoverEquiv;
+  var ratio = totalEquiv / newServings;
+
+  // Mettre a jour l info
+  var info = document.getElementById("scalingInfo");
+  if(info){
+    var parts = ["Famille: "+baseEquiv.toFixed(1)+" eq."];
+    if(leftoverEquiv > 0) parts.push("Restes: +"+leftoverEquiv.toFixed(2)+" eq.");
+    parts.push("Total: x"+ratio.toFixed(2)+" vs recette");
+    info.textContent = parts.join(" | ");
+  }
 
   // Recalculer et rerendre la liste
   var groups = {Boucherie:[],Primeur:[],Supermarche:[],Condiments:[]};
@@ -2093,23 +2112,36 @@ function openShoppingModal(mode){
   }
   document.getElementById("shoppingIngList").innerHTML = html;
 
-  // Info portions + correction
+  // Construire l UI portions + restes
   var servingsInfo = document.getElementById("shoppingServingsInfo");
   if(servingsInfo){
+    var membersHtml = getFamille().map(function(m, i){
+      return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">'+
+        '<input type="checkbox" class="leftover-cb" data-idx="'+i+'" onchange="recalcShoppingScaling()" '+
+        'style="width:14px;height:14px;cursor:pointer"/>'+
+        '<span>'+m.name+'</span>'+
+        '</label>';
+    }).join('');
     servingsInfo.innerHTML =
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--bll);border-radius:6px;border:1px solid rgba(30,64,175,.15)">'+
-        '<span style="font-size:12px;color:var(--bl);flex:1">Recette pour <strong>'+servings+'</strong> pers. -> adapte pour <strong>'+familySize+'</strong></span>'+
-        '<div style="display:flex;align-items:center;gap:4px">'+
-          '<button onclick="adjustServings(-1)" style="width:24px;height:24px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer;font-size:14px">-</button>'+
-          '<input type="number" id="servingsInput" value="'+servings+'" min="1" max="20" '+
-            'style="width:36px;text-align:center;border:1px solid var(--bd);border-radius:4px;padding:2px 0;font-size:13px" '+
-            'onchange="recalcShoppingScaling()"/>'+
-          '<button onclick="adjustServings(1)" style="width:24px;height:24px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer;font-size:14px">+</button>'+
+      '<div style="padding:10px;background:var(--bll);border:1px solid rgba(30,64,175,.15);border-radius:6px;margin-bottom:12px">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+          '<span style="font-size:12px;color:var(--bl);flex:1">Recette pour <strong id="servingsDisplay">'+servings+'</strong> pers.</span>'+
+          '<div style="display:flex;align-items:center;gap:4px">'+
+            '<button onclick="adjustServings(-1)" style="width:24px;height:24px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer">-</button>'+
+            '<input type="number" id="servingsInput" value="'+servings+'" min="1" max="20" '+
+              'style="width:36px;text-align:center;border:1px solid var(--bd);border-radius:4px;padding:2px 0;font-size:13px" '+
+              'onchange="recalcShoppingScaling()"/>'+
+            '<button onclick="adjustServings(1)" style="width:24px;height:24px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer">+</button>'+
+          '</div>'+
         '</div>'+
+        '<div style="font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:6px">Restes pour :</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:10px">'+membersHtml+'</div>'+
+        '<div id="scalingInfo" style="font-size:11px;color:var(--tx3);margin-top:6px"></div>'+
       '</div>';
   }
   // Stocker les donnees brutes pour recalcul
   window._shoppingData = {ings: ings, familySize: familySize, familyEquiv: familyEquiv, mode: _shoppingMode};
+  recalcShoppingScaling();
 
   openModal("shoppingModal");
 }
