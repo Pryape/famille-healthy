@@ -526,31 +526,29 @@ function buildAnalyzePrompt(url){
   var famDesc = getFamille().map(function(m){
     return m.name+"("+m.age+"ans,"+m.weight+"kg,cible:"+tkcal(m)+"kcal,prot:"+Math.round(m.weight*m.pGkg)+"g,"+m.goal+")";
   }).join("; ");
-  return 'Tu es nutritionniste expert. Analyse la recette a cette URL et retourne UNIQUEMENT un objet JSON valide, sans markdown ni backticks.\n\n'+
+  return 'Tu es un expert nutritionniste. Visite cette URL et retourne UNIQUEMENT du JSON valide.\n'+
     'URL: '+url+'\n'+
-    'Source: '+selectedSrc+'\n'+
-    'Saison actuelle: '+season+'\n'+
-    'Famille (5 membres): '+famDesc+'\n\n'+
-    'INSTRUCTIONS IMPORTANTES:\n'+
-    '- Lis attentivement TOUTE la page et liste ABSOLUMENT TOUS les ingredients sans en oublier aucun\n'+
-    '- Si un ingredient est liste sur la page (ex: parmesan, vinaigre balsamique, creme, pommes de terre, oignons), il DOIT apparaitre dans ta liste\n'+
-    '- Les legumes de garniture, les condiments et les epices doivent TOUS etre inclus\n'+
-    '- Pour les ingredients composes (ex: poulet pane), decompose en ingredients bruts (poulet, chapelure, oeuf) ET garde aussi les ingredients de sauce/garniture\n'+
-    '- Verifie deux fois ta liste avant de repondre : compare avec la liste de la page\n'+
-    '- Calcule les calories de CHAQUE ingredient (kcal_total) en utilisant les tables nutritionnelles standard\n'+
-    '- Additionne tous les kcal_total pour obtenir kcal_total_recette\n'+
-    '- Divise kcal_total_recette par servings pour obtenir kcal_par_personne\n'+
-    '- NE METS JAMAIS 0 pour les calories sauf si l ingredient a vraiment 0 calories (eau, sel)\n\n'+
-    'Structure JSON attendue:\n'+
-    '{\n'+
-    '  "recipe": {"title": string, "source": "'+selectedSrc+'", "original_url": "'+url+'", "cuisine": string, "prep": string, "cook": string, "servings": number, "emoji": string, "description": string, "type_plat": string},\n'+
-    '  "qualite": {"nutriscore": "A"|"B"|"C"|"D"|"E", "nutriscore_raison": string, "score_sur_100": number, "points_positifs": [string], "points_negatifs": [string]},\n'+
-    '  "types": {"viande": bool, "vegan": bool, "vegetarien": bool, "sans_viande": bool, "poisson": bool, "de_saison": bool, "local": bool, "healthy": bool},\n'+
-    '  "ingredients": [{"nom": string, "quantite": number, "unite": string, "kcal_total": number, "origine": string, "saison": [string], "est_viande": bool, "est_poisson": bool, "est_produit_laitier": bool, "tag_ingredient": string}],\n'+
-    '  "kcal_total_recette": number,\n'+
-    '  "kcal_par_personne": number,\n'+
-    '  "tags_auto": [string],\n'+
-    '  "ingredients_principaux": [string]\n'+
+    'Saison: '+season+'\n'+
+    'Famille: '+famDesc+'\n\n'+
+    'ETAPE 1 - Lis la page et liste TOUS les ingredients visibles (titre, liste ingredients, instructions).\n'+
+    'ETAPE 2 - Pour chaque ingredient: calcule les kcal reels (jamais 0 sauf eau/sel).\n'+
+    'ETAPE 3 - Verifie: aucun ingredient de la page ne doit manquer dans ta liste.\n\n'+
+    'REGLES CRITIQUES:\n'+
+    '- Inclure TOUS les legumes (pommes de terre, oignons, carottes...) meme en garniture\n'+
+    '- Inclure TOUS les condiments (huile, beurre, epices, herbes...)\n'+
+    '- Inclure sauces, yaourts, fromages, oeufs\n'+
+    '- tag_ingredient: utiliser parmi: viande, poisson, legume, fruit, herbe aromatique, legume aromate, produit laitier, fromage, oeuf, feculents, legumineuse, matiere grasse, condiment, epice, sauce, farine, sucrant\n'+
+    '- servings: nombre de portions indique sur la page\n\n'+
+    'JSON:\n'+
+    '{'+
+    '"recipe":{"title":string,"source":"'+selectedSrc+'","original_url":"'+url+'","cuisine":string,"prep":string,"cook":string,"servings":number,"emoji":string,"description":string,"type_plat":string},'+
+    '"qualite":{"nutriscore":"A"|"B"|"C"|"D"|"E","nutriscore_raison":string,"score_sur_100":number,"points_positifs":[string],"points_negatifs":[string]},'+
+    '"types":{"viande":bool,"vegan":bool,"vegetarien":bool,"sans_viande":bool,"poisson":bool,"de_saison":bool,"local":bool,"healthy":bool},'+
+    '"ingredients":[{"nom":string,"quantite":number,"unite":string,"kcal_total":number,"origine":string,"saison":[string],"est_viande":bool,"est_poisson":bool,"est_produit_laitier":bool,"tag_ingredient":string}],'+
+    '"kcal_total_recette":number,'+
+    '"kcal_par_personne":number,'+
+    '"tags_auto":[string],'+
+    '"ingredients_principaux":[string]'+
     '}';
 }
 
@@ -728,7 +726,7 @@ function renderOriginalCard(d){
           "<div style=\'margin-top:2px\'><div class=\'pbar\'><div class=\'pfill\' style=\'width:" + Math.min(ppct,100) + "%;background:" + col + "\'></div></div></div>" +
           "</div>" +
           "<div style=\'text-align:right\'><div style=\'font-size:12px;font-weight:500;color:" + col + "\'>" + (p.kcal||0) + " kcal</div>" +
-          "<div style=\'font-size:10px;color:var(--tx2)\'>" + " kcal</div></div>" +
+          "<div style=\'font-size:10px;color:var(--tx2)\'>" + " g prot</div></div>" +
           "</div>";
       }).join("") +
       '</div>' : '')+
