@@ -2131,6 +2131,147 @@ function recalcShoppingScaling(){
   document.getElementById("shoppingIngList").innerHTML = html;
 }
 
+// ==== UTILS ====
+function openModal(id){document.getElementById(id).classList.add("open")}
+function closeModal(id){document.getElementById(id).classList.remove("open")}
+function toast(msg){var t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(function(){t.classList.remove("show")},2800)}
+function copyText(text, msg){
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(text).then(function(){toast(msg||"Copie !")}).catch(function(){fallbackCopy(text,msg)});
+  } else { fallbackCopy(text,msg); }
+}
+function fallbackCopy(text,msg){
+  var ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";
+  document.body.appendChild(ta);ta.focus();ta.select();
+  try{document.execCommand("copy");toast(msg||"Copie !")}catch(e){toast("Erreur copie")}
+  document.body.removeChild(ta);
+}
+
+// ==== SHEETS / DRIVE CONFIRM ====
+async function confirmShoppingSheets(){
+  var data = convertedAnalysis||originalAnalysis;
+  if(!data||!_googleToken) return;
+  var statusEl = document.getElementById("shoppingStatus");
+  var linkEl = document.getElementById("shoppingLink");
+  var btnEl = document.getElementById("shoppingConfirmBtn");
+  statusEl.textContent = "Ajout en cours...";
+  statusEl.style.color = "var(--am)";
+  if(btnEl) btnEl.style.display = "none";
+  var ingredients = getCheckedIngredients();
+  var subs = (data.ingredients||[]).filter(function(i){return i.sub&&!i.supprime;})
+    .map(function(i){return {original:i.original||i.nom,sub:i.sub,reason:i.reason};});
+  var r = data.recipe||{};
+  var ctx = window._shoppingContext || {};
+  // Quantites recommandees par personne presente
+  var portionsDetail = [];
+  var fam = getFamille();
+  var defaultMults = [1.35,1.0,1.1,0.82,0.62];
+  var srv = (data.recipe && data.recipe.servings) || 1;
+  (ctx.presentNames||[]).forEach(function(name){
+    var idx = fam.findIndex(function(m){return m.name===name;});
+    if(idx<0) return;
+    var mult = defaultMults[idx]||1.0;
+    var grammage = calcPortionWeight(data.ingredients, mult, srv);
+    var kcal = Math.round((data.kcal_par_personne||0) * mult);
+    portionsDetail.push(name+": "+grammage+"g / "+kcal+"kcal");
+  });
+  try{
+    var resp = await fetch("https://famille-healthy-api.rofes-julien.workers.dev/sheets",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+_googleToken},
+      body:JSON.stringify({
+        action:"addIngredients", ingredients:ingredients,
+        recipeTitle:r.title||"Recette", recipeUrl:r.original_url||"",
+        substitutions:subs,
+        presentNames: ctx.presentNames||[],
+        leftoverNames: ctx.leftoverNames||[],
+        guests: ctx.guests||0,
+        ratio: ctx.ratio||1,
+        portionsDetail: portionsDetail
+      })
+    });
+    var result = await resp.json();
+    if(result.alreadyPlanned){
+      statusEl.style.color = "var(--am)";
+      statusEl.innerHTML = result.recipeTitle+" est deja dans votre liste de courses.<br>"+
+        "<button class='btn btnsm btnp' style='margin-top:8px' onclick='confirmShoppingForce()'>Ajouter quand meme</button>";
+      if(btnEl) btnEl.style.display = "";
+    } else if(result.ok){
+      statusEl.textContent = ingredients.length+" ingredient(s) ajoutes !";
+      statusEl.style.color = "var(--gr)";
+      linkEl.style.display = "block";
+      linkEl.href = result.sheetUrl;
+      try{ saveCtx(convertedAnalysis?"converted":"original"); } catch(e){}
+    } else {
+      statusEl.textContent = "Erreur: "+(result.error||"inconnue");
+      statusEl.style.color = "var(--rd)";
+      if(btnEl) btnEl.style.display = "";
+    }
+  }catch(e){
+    statusEl.textContent = "Erreur: "+e.message;
+    statusEl.style.color = "var(--rd)";
+    if(btnEl) btnEl.style.display = "";
+  }
+}
+
+async function confirmShoppingForce(){
+  var data = convertedAnalysis||originalAnalysis;
+  if(!data||!_googleToken) return;
+  var statusEl = document.getElementById("shoppingStatus");
+  var linkEl = document.getElementById("shoppingLink");
+  statusEl.textContent = "Ajout force en cours...";
+  statusEl.style.color = "var(--am)";
+  var ingredients = getCheckedIngredients();
+  var subs = (data.ingredients||[]).filter(function(i){return i.sub&&!i.supprime;})
+    .map(function(i){return {original:i.original||i.nom,sub:i.sub,reason:i.reason};});
+  var r = data.recipe||{};
+  try{
+    var resp = await fetch("https://famille-healthy-api.rofes-julien.workers.dev/sheets",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+_googleToken},
+      body:JSON.stringify({
+        action:"addIngredients", ingredients:ingredients,
+        recipeTitle:r.title||"Recette", recipeUrl:r.original_url||"",
+        substitutions:subs, forceAdd:true
+      })
+    });
+    var result = await resp.json();
+    if(result.ok){
+      statusEl.textContent = ingredients.length+" ingredient(s) ajoutes !";
+      statusEl.style.color = "var(--gr)";
+      linkEl.style.display = "block";
+      linkEl.href = result.sheetUrl;
+    } else if(result.error) {
+      statusEl.textContent = "Erreur: "+result.error;
+      statusEl.style.color = "var(--rd)";
+    }
+  }catch(e){
+    statusEl.textContent = "Erreur: "+e.message;
+    statusEl.style.color = "var(--rd)";
+  }
+}
+
+function confirmShoppingDrive(){
+  var data = convertedAnalysis||originalAnalysis;
+  if(!data) return;
+  var driveEl = document.getElementById("shoppingDrivePrompt");
+  var promptBox = document.getElementById("shoppingPromptBox");
+  var btnEl = document.getElementById("shoppingConfirmBtn");
+  if(btnEl) btnEl.style.display = "none";
+  var ingredients = getCheckedIngredients();
+  var drive = DRIVES[_selectedDrive]||DRIVES.leclerc;
+  var prompt = "Va sur "+drive.url+" et ajoute ces ingredients au panier:\n\n"+
+    ingredients.map(function(i){return "- "+i.nom+" : "+i.quantite+" "+i.unite;}).join("\n")+
+    "\n\nMerci !";
+  if(promptBox) promptBox.textContent = prompt;
+  if(driveEl) driveEl.style.display = "block";
+}
+
+function copyShoppingPrompt(){
+  var box = document.getElementById("shoppingPromptBox");
+  if(box) copyText(box.textContent, "Prompt copie !");
+}
+
 </script>
 </body>
 </html>
