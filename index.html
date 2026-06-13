@@ -744,7 +744,7 @@ function renderOriginalCard(d){
         getFamille().forEach(function(m, i){
           var mults = [1.35,1.0,1.1,0.82,0.62];
           var mult = mults[i]||1.0;
-          var grammage = calcPortionWeight(d.ingredients, mult);
+        var grammage = calcPortionWeight(d.ingredients, mult, d.recipe && d.recipe.servings || 1);
           var prot = Math.round(kcalPerPers * mult * 0.2 / 4);
           var col = m.goal==="recomp" ? "#7C3AED" : "var(--gr)";
           infoHtml += '<span style="font-size:13px;color:'+col+';font-weight:500">'+m.name.slice(0,1)+'</span>';
@@ -936,19 +936,19 @@ function backToConvOptions(){
   document.getElementById("step-convert").style.display="block";
 }
 
-function calcPortionWeight(ingredients, mult){
+function calcPortionWeight(ingredients, mult, servings){
   var total = 0;
   (ingredients||[]).forEach(function(ing){
     if(ing.supprime) return;
-    // Prendre la quantite apres substitution en priorite
     var qty = parseFloat(ing.sub_qty || ing.quantite || ing.qty || 0);
     var unit = (ing.sub_unit || ing.unite || ing.unit || "").toLowerCase().trim();
     if(unit === "g" || unit === "ml") total += qty;
     else if(unit === "kg" || unit === "l") total += qty * 1000;
     else if(unit === "cl") total += qty * 10;
-    // gousses, pincees, brins, feuilles = negligeable
   });
-  return Math.round(total * (mult||1) / 5);
+  // Diviser par le nb de portions reel, pas hardcode 5
+  var srv = parseFloat(servings) || 1;
+  return Math.round(total * (mult||1) / srv);
 }
 
 function portionsJson(){
@@ -1183,7 +1183,7 @@ function renderConvertedResult(d){
       '</div>'+
       '<div style="text-align:right;flex-shrink:0">'+
         '<div style="font-size:13px;font-weight:500;color:'+col+'">'+(p.kcal||0)+' kcal</div>'+
-        '<div style="font-size:10px;color:var(--tx3)">~'+calcPortionWeight(d.ingredients,p.mult||1)+'g dans l\'assiette</div>'+
+        '<div style="font-size:10px;color:var(--tx3)">~'+calcPortionWeight(d.ingredients,p.mult||1,d.recipe&&d.recipe.servings||1)+'g dans l\'assiette</div>'+
       '</div>'+
     '</div>';
   });
@@ -1250,7 +1250,7 @@ function renderKcal(){
       '</div>'+
       '<div style="text-align:right;flex-shrink:0">'+
         '<div style="font-size:14px;font-weight:500;color:'+col+'">'+(p.kcal||0)+' kcal</div>'+
-        '<div style="font-size:11px;color:var(--tx3)">~'+calcPortionWeight(data.ingredients,p.mult||1)+'g dans l\'assiette</div>'+
+        '<div style="font-size:11px;color:var(--tx3)">~'+calcPortionWeight(data.ingredients,p.mult||1,data.recipe&&data.recipe.servings||1)+'g dans l\'assiette</div>'+
       '</div>'+
     '</div>';
   });
