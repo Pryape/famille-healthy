@@ -1926,26 +1926,49 @@ function recalcShoppingScaling(){
   if(!data) return;
   var newServings = data.recipeServings || 4;
 
-  // Calculer l equiv famille + restes coches
   var defaultMults = [1.35, 1.0, 1.1, 0.82, 0.62];
-  var baseEquiv = data.familyEquiv;
+  var fam = window._shoppingData ? (window._shoppingData.famille || []) : [];
+
+  // Membres presents ce soir
+  var presentEquiv = 0;
+  var presentNames = [];
+  document.querySelectorAll(".present-cb:checked").forEach(function(cb){
+    var idx = parseInt(cb.dataset.idx)||0;
+    presentEquiv += defaultMults[idx] || 1.0;
+    if(fam[idx]) presentNames.push(fam[idx].name);
+  });
+
+  // Restes pour
   var leftoverEquiv = 0;
+  var leftoverNames = [];
   document.querySelectorAll(".leftover-cb:checked").forEach(function(cb){
     var idx = parseInt(cb.dataset.idx)||0;
     leftoverEquiv += defaultMults[idx] || 1.0;
+    if(fam[idx]) leftoverNames.push(fam[idx].name);
   });
-  // Invites supplementaires (1 equiv adulte chacun)
+
+  // Invites
   var guests = parseInt((document.getElementById("guestsInput")||{}).value||0) || 0;
-  var totalEquiv = baseEquiv + leftoverEquiv + guests;
+  var totalEquiv = presentEquiv + leftoverEquiv + guests;
   var ratio = totalEquiv / newServings;
 
-  // Mettre a jour l info
+  // Stocker pour usage lors de l ajout au sheet
+  window._shoppingContext = {
+    presentNames: presentNames,
+    leftoverNames: leftoverNames,
+    guests: guests,
+    ratio: ratio,
+    recipeServings: newServings
+  };
+
+  // Info
   var info = document.getElementById("scalingInfo");
   if(info){
-    var parts = ["Famille: "+baseEquiv.toFixed(1)+" eq."];
-    if(leftoverEquiv > 0) parts.push("Restes: +"+leftoverEquiv.toFixed(2)+" eq.");
-    parts.push("Total: x"+ratio.toFixed(2)+" vs recette");
-    info.textContent = parts.join(" | ");
+    var label = presentNames.join(", ") || "personne";
+    if(leftoverNames.length) label += " + restes: "+leftoverNames.join(", ");
+    if(guests > 0) label += " + "+guests+" invite(s)";
+    label += "  x"+ratio.toFixed(2);
+    info.textContent = label;
   }
 
   // Recalculer et rerendre la liste
@@ -2150,26 +2173,35 @@ function openShoppingModal(mode){
         '<span>'+m.name+'</span>'+
         '</label>';
     }).join('');
+    var presentHtml = getFamille().map(function(m, i){
+      return '<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">'+
+        '<input type="checkbox" class="present-cb" data-idx="'+i+'" checked onchange="recalcShoppingScaling()" '+
+        'style="width:14px;height:14px;cursor:pointer"/>'+
+        '<span>'+m.name+'</span>'+
+        '</label>';
+    }).join('');
+
     servingsInfo.innerHTML =
       '<div style="padding:10px;background:var(--bll);border:1px solid rgba(30,64,175,.15);border-radius:6px;margin-bottom:12px">'+
-        '<div style="font-size:12px;color:var(--tx2);margin-bottom:8px">Recette pour <strong>'+servings+'</strong> pers.</div>'+
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
-          '<span style="font-size:12px;color:var(--bl);flex:1">Invites supplementaires</span>'+
+        '<div style="font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:6px">Qui mange ce soir ?</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(30,64,175,.15)">'+presentHtml+'</div>'+
+        '<div style="font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:6px">Restes pour :</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(30,64,175,.15)">'+membersHtml+'</div>'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<span style="font-size:11px;font-weight:500;color:var(--tx2);flex:1">Invites</span>'+
           '<div style="display:flex;align-items:center;gap:4px">'+
-            '<button onclick="adjustGuests(-1)" style="width:24px;height:24px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer">-</button>'+
+            '<button onclick="adjustGuests(-1)" style="width:22px;height:22px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer;font-size:13px">-</button>'+
             '<input type="number" id="guestsInput" value="0" min="0" max="20" '+
-              'style="width:36px;text-align:center;border:1px solid var(--bd);border-radius:4px;padding:2px 0;font-size:13px" '+
+              'style="width:32px;text-align:center;border:1px solid var(--bd);border-radius:4px;padding:1px 0;font-size:12px" '+
               'onchange="recalcShoppingScaling()"/>'+
-            '<button onclick="adjustGuests(1)" style="width:24px;height:24px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer">+</button>'+
+            '<button onclick="adjustGuests(1)" style="width:22px;height:22px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer;font-size:13px">+</button>'+
           '</div>'+
         '</div>'+
-        '<div style="font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:6px">Restes pour :</div>'+
-        '<div style="display:flex;flex-wrap:wrap;gap:10px">'+membersHtml+'</div>'+
-        '<div id="scalingInfo" style="font-size:11px;color:var(--tx3);margin-top:6px"></div>'+
+        '<div id="scalingInfo" style="font-size:11px;color:var(--tx3);margin-top:6px;font-weight:500"></div>'+
       '</div>';
   }
   // Stocker les donnees brutes pour recalcul
-  window._shoppingData = {ings: ings, familySize: familySize, familyEquiv: familyEquiv, mode: _shoppingMode, recipeServings: servings};
+  window._shoppingData = {ings: ings, familySize: familySize, familyEquiv: familyEquiv, mode: _shoppingMode, recipeServings: servings, famille: getFamille()};
   openModal("shoppingModal");
   // Attendre que le DOM soit rendu avant de calculer
   setTimeout(function(){ recalcShoppingScaling(); }, 50);
@@ -2307,6 +2339,7 @@ async function confirmShoppingSheets(){
   var r = data.recipe||{};
 
   try{
+      var ctx = window._shoppingContext || {};
     var resp = await fetch("https://famille-healthy-api.rofes-julien.workers.dev/sheets",{
       method:"POST",
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+_googleToken},
@@ -2315,7 +2348,11 @@ async function confirmShoppingSheets(){
         ingredients:ingredients,
         recipeTitle:r.title||"Recette",
         recipeUrl:r.original_url||"",
-        substitutions:subs
+        substitutions:subs,
+        presentNames: ctx.presentNames||[],
+        leftoverNames: ctx.leftoverNames||[],
+        guests: ctx.guests||0,
+        ratio: ctx.ratio||1
       })
     });
     var result = await resp.json();
