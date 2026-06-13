@@ -553,11 +553,11 @@ function buildAnalyzePrompt(url){
 }
 
 // Appel API via Cloudflare Worker (cle securisee cote serveur)
-function callGeminiWorker(prompt){
+function callGeminiWorker(prompt, url){
   return fetch("https://famille-healthy-api.rofes-julien.workers.dev/gemini", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt: prompt })
+    body: JSON.stringify({ prompt: prompt, url: url||null })
   }).then(function(resp){
     return resp.json().then(function(data){
       if(!resp.ok) throw new Error(data.error || "Erreur API");
@@ -581,7 +581,7 @@ function startAnalysis(){
   document.getElementById("loadingMsg").textContent = "Analyse de la recette en cours...";
   hideAllSteps();
   document.getElementById("step-loading").style.display = "block";
-  callGeminiWorker(buildAnalyzePrompt(url)).then(function(result){
+  callGeminiWorker(buildAnalyzePrompt(url), url).then(function(result){
     hideAllSteps();
     document.getElementById("step-url").style.display = "block";
     originalAnalysis = result;
