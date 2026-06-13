@@ -594,9 +594,9 @@ function startAnalysis(){
   callGeminiWorker(buildAnalyzePrompt(url), url).then(function(result){
     hideAllSteps();
     document.getElementById("step-url").style.display = "block";
-    // Toujours normaliser servings a 4 (norme de l app - quantites pour 4 adultes)
+    // Garder le servings detecte par Gemini (ou defaut 4)
     if(!result.recipe) result.recipe = {};
-    result.recipe.servings = 4;
+    if(!result.recipe.servings || result.recipe.servings < 1) result.recipe.servings = 4;
     originalAnalysis = result;
     convertedAnalysis = null;
     renderOriginalCard(originalAnalysis);
@@ -1901,19 +1901,17 @@ function confirmSubs(){
   renderKcal();
 }
 
-function adjustServings(delta){
-  var input = document.getElementById("servingsInput");
+function adjustGuests(delta){
+  var input = document.getElementById("guestsInput");
   if(!input) return;
-  var val = parseInt(input.value)||1;
-  input.value = Math.max(1, val + delta);
+  input.value = Math.max(0, (parseInt(input.value)||0) + delta);
   recalcShoppingScaling();
 }
 
 function recalcShoppingScaling(){
-  var input = document.getElementById("servingsInput");
   var data = window._shoppingData;
-  if(!input || !data) return;
-  var newServings = parseInt(input.value)||1;
+  if(!data) return;
+  var newServings = data.recipeServings || 4;
 
   // Calculer l equiv famille + restes coches
   var defaultMults = [1.35, 1.0, 1.1, 0.82, 0.62];
@@ -1923,7 +1921,9 @@ function recalcShoppingScaling(){
     var idx = parseInt(cb.dataset.idx)||0;
     leftoverEquiv += defaultMults[idx] || 1.0;
   });
-  var totalEquiv = baseEquiv + leftoverEquiv;
+  // Invites supplementaires (1 equiv adulte chacun)
+  var guests = parseInt((document.getElementById("guestsInput")||{}).value||0) || 0;
+  var totalEquiv = baseEquiv + leftoverEquiv + guests;
   var ratio = totalEquiv / newServings;
 
   // Mettre a jour l info
@@ -2139,14 +2139,15 @@ function openShoppingModal(mode){
     }).join('');
     servingsInfo.innerHTML =
       '<div style="padding:10px;background:var(--bll);border:1px solid rgba(30,64,175,.15);border-radius:6px;margin-bottom:12px">'+
+        '<div style="font-size:12px;color:var(--tx2);margin-bottom:8px">Recette pour <strong>'+servings+'</strong> pers.</div>'+
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
-          '<span style="font-size:12px;color:var(--bl);flex:1">Recette pour <strong id="servingsDisplay">'+servings+'</strong> pers.</span>'+
+          '<span style="font-size:12px;color:var(--bl);flex:1">Invites supplementaires</span>'+
           '<div style="display:flex;align-items:center;gap:4px">'+
-            '<button onclick="adjustServings(-1)" style="width:24px;height:24px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer">-</button>'+
-            '<input type="number" id="servingsInput" value="'+servings+'" min="1" max="20" '+
+            '<button onclick="adjustGuests(-1)" style="width:24px;height:24px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer">-</button>'+
+            '<input type="number" id="guestsInput" value="0" min="0" max="20" '+
               'style="width:36px;text-align:center;border:1px solid var(--bd);border-radius:4px;padding:2px 0;font-size:13px" '+
               'onchange="recalcShoppingScaling()"/>'+
-            '<button onclick="adjustServings(1)" style="width:24px;height:24px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer">+</button>'+
+            '<button onclick="adjustGuests(1)" style="width:24px;height:24px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer">+</button>'+
           '</div>'+
         '</div>'+
         '<div style="font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:6px">Restes pour :</div>'+
@@ -2155,7 +2156,7 @@ function openShoppingModal(mode){
       '</div>';
   }
   // Stocker les donnees brutes pour recalcul
-  window._shoppingData = {ings: ings, familySize: familySize, familyEquiv: familyEquiv, mode: _shoppingMode};
+  window._shoppingData = {ings: ings, familySize: familySize, familyEquiv: familyEquiv, mode: _shoppingMode, recipeServings: servings};
   openModal("shoppingModal");
   // Attendre que le DOM soit rendu avant de calculer
   setTimeout(function(){ recalcShoppingScaling(); }, 50);
