@@ -585,11 +585,9 @@ function startAnalysis(){
   callGeminiWorker(buildAnalyzePrompt(url), url).then(function(result){
     hideAllSteps();
     document.getElementById("step-url").style.display = "block";
-    // Normaliser servings a 4 si absent ou different (norme de l app)
+    // Toujours normaliser servings a 4 (norme de l app - quantites pour 4 adultes)
     if(!result.recipe) result.recipe = {};
-    if(!result.recipe.servings || result.recipe.servings < 1) {
-      result.recipe.servings = 4;
-    }
+    result.recipe.servings = 4;
     originalAnalysis = result;
     convertedAnalysis = null;
     renderOriginalCard(originalAnalysis);
@@ -1985,9 +1983,12 @@ function categorizeIngredient(ing){
   }
 
   // 2. PRIMEUR : fruits, legumes frais, herbes fraiches - AVANT condiments car oignon/ail peuvent matcher
+  // Liste des herbes qui sont en realite des condiments/epices seches
+  var condimentHerbs = /^(persillade|fines herbes|herbes de provence|bouquet garni|thym sec|romarin sec|basilic sec|oregano|laurier|coriandre moulue|cumin|curry|paprika|piment|muscade|cannelle|gingembre)/.test(nom);
   if((tag==="legume"||tag==="fruit"||tag==="herbe"||tag==="herbe aromatique"||
       tag==="legume aromate"||tag==="aromate") &&
-     !/(lentille|pois chiche|haricot|feve|soja|tofu|seitan|tempeh)/.test(nom)){
+     !/(lentille|pois chiche|haricot|feve|soja|tofu|seitan|tempeh)/.test(nom) &&
+     !condimentHerbs){
     return "Primeur";
   }
   if(/^(tomate|carotte|courgette|aubergine|poivron|oignon|ail|echalote|pomme|poire|banane|citron|orange|salade|epinard|brocoli|chou|poireau|navet|radis|champignon|basilic frais|persil frais|ciboulette|menthe fraiche|pomme de terre|patate douce|avocat|concombre|celeri|fenouil|asperge|artichaut|roquette|mache|haricot vert|petit pois|betterave|potiron|courge|fraise|framboise|myrtille|cerise|peche|abricot|mangue|ananas|kiwi|raisin|poireau|courgette|brocoli)/.test(nom)){
@@ -2146,9 +2147,9 @@ function openShoppingModal(mode){
   }
   // Stocker les donnees brutes pour recalcul
   window._shoppingData = {ings: ings, familySize: familySize, familyEquiv: familyEquiv, mode: _shoppingMode};
-  recalcShoppingScaling();
-
   openModal("shoppingModal");
+  // Attendre que le DOM soit rendu avant de calculer
+  setTimeout(function(){ recalcShoppingScaling(); }, 50);
 }
 
 function selectDrive(key){
