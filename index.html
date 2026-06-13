@@ -1921,6 +1921,125 @@ function adjustGuests(delta){
   recalcShoppingScaling();
 }
 
+// ==== MODAL LISTE DE COURSES / PANIER DRIVE ====
+var _shoppingMode = "sheets";
+var DRIVES = {
+  leclerc:    {name:"Leclerc Drive",    url:"https://www.leclercdrive.fr"},
+  carrefour:  {name:"Carrefour Drive",  url:"https://www.carrefour.fr/drive"},
+  auchan:     {name:"Auchan Drive",     url:"https://www.auchandrive.fr"},
+  intermarche:{name:"Intermarche Drive",url:"https://www.intermarche.com/drive"}
+};
+var _selectedDrive = "leclerc";
+
+function openShoppingModal(mode){
+  var data = convertedAnalysis||originalAnalysis;
+  if(!data){toast("Analysez d abord une recette");return;}
+  if(mode==="sheets" && !_googleToken){toast("Connectez Google Drive dans l onglet Historique");return;}
+  _shoppingMode = mode||"sheets";
+
+  var titleEl = document.getElementById("shoppingTitle");
+  var descEl = document.getElementById("shoppingDesc");
+  var btnEl = document.getElementById("shoppingConfirmBtn");
+  var driveEl = document.getElementById("shoppingDrivePrompt");
+  var linkEl = document.getElementById("shoppingLink");
+  var statusEl = document.getElementById("shoppingStatus");
+  if(titleEl) titleEl.textContent = mode==="drive" ? "Panier Drive" : "Liste de courses";
+  if(descEl) descEl.textContent = mode==="drive" ? "Selectionnez les ingredients et choisissez votre drive." : "Selectionnez les ingredients a ajouter dans Google Sheets.";
+  if(btnEl) btnEl.textContent = mode==="drive" ? "Generer le prompt Drive" : "Ajouter dans Google Sheets";
+  if(driveEl) driveEl.style.display = "none";
+  if(linkEl) linkEl.style.display = "none";
+  if(statusEl) statusEl.textContent = "";
+  if(document.getElementById("shoppingConfirmBtn")) document.getElementById("shoppingConfirmBtn").style.display = "";
+
+  // Construire le bloc "Qui mange / Restes / Invites"
+  var servingsInfo = document.getElementById("shoppingServingsInfo");
+  var servings = (data.recipe && data.recipe.servings) || 1;
+  var fam = getFamille();
+  var defaultMults = [1.35,1.0,1.1,0.82,0.62];
+
+  var presentHtml = fam.map(function(m, i){
+    return '<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">'+
+      '<input type="checkbox" class="present-cb" data-idx="'+i+'" checked onchange="recalcShoppingScaling()" '+
+      'style="width:14px;height:14px;cursor:pointer"/>'+
+      '<span>'+m.name+'</span></label>';
+  }).join('');
+
+  var leftoverHtml = fam.map(function(m, i){
+    return '<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">'+
+      '<input type="checkbox" class="leftover-cb" data-idx="'+i+'" onchange="recalcShoppingScaling()" '+
+      'style="width:14px;height:14px;cursor:pointer"/>'+
+      '<span>'+m.name+'</span></label>';
+  }).join('');
+
+  if(servingsInfo){
+    servingsInfo.innerHTML =
+      '<div style="padding:10px;background:var(--bll);border:1px solid rgba(30,64,175,.15);border-radius:6px;margin-bottom:12px">'+
+        '<div style="font-size:11px;color:var(--tx3);margin-bottom:6px">Recette pour '+servings+' pers.</div>'+
+        '<div style="font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:6px">Qui mange ce soir ?</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(30,64,175,.15)">'+presentHtml+'</div>'+
+        '<div style="font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:6px">Restes pour :</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(30,64,175,.15)">'+leftoverHtml+'</div>'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<span style="font-size:11px;font-weight:500;color:var(--tx2);flex:1">Invites</span>'+
+          '<div style="display:flex;align-items:center;gap:4px">'+
+            '<button onclick="adjustGuests(-1)" style="width:22px;height:22px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer">-</button>'+
+            '<input type="number" id="guestsInput" value="0" min="0" max="20" '+
+              'style="width:32px;text-align:center;border:1px solid var(--bd);border-radius:4px;padding:1px 0;font-size:12px" '+
+              'onchange="recalcShoppingScaling()"/>'+
+            '<button onclick="adjustGuests(1)" style="width:22px;height:22px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);cursor:pointer">+</button>'+
+          '</div>'+
+        '</div>'+
+        '<div id="scalingInfo" style="font-size:11px;color:var(--tx3);margin-top:6px;font-weight:500"></div>'+
+      '</div>';
+  }
+
+  // Stocker les donnees pour recalcul
+  window._shoppingData = {
+    ings: (data.ingredients||[]).filter(function(i){return !i.supprime}),
+    familyEquiv: defaultMults.reduce(function(s,m){return s+m},0),
+    recipeServings: servings,
+    famille: fam,
+    mode: _shoppingMode
+  };
+
+  openModal("shoppingModal");
+  setTimeout(function(){ recalcShoppingScaling(); }, 50);
+}
+
+function selectDrive(key){
+  _selectedDrive = key;
+  Object.keys(DRIVES).forEach(function(k){
+    var btn = document.getElementById("drivebtn_"+k);
+    if(btn){ btn.className = "btn btnsm "+(k===key?"btnp":"btns"); }
+  });
+}
+
+function getCheckedIngredients(){
+  var checked = document.querySelectorAll("#shoppingIngList input[type=checkbox]:checked");
+  var ingredients = [];
+  checked.forEach(function(cb){
+    ingredients.push({
+      nom: cb.dataset.nom,
+      quantite: parseFloat(cb.dataset.qty)||0,
+      unite: cb.dataset.unit,
+      categorie: cb.dataset.cat,
+      original: cb.dataset.original,
+      sub: cb.dataset.sub
+    });
+  });
+  return ingredients;
+}
+
+async function confirmShopping(){
+  if(_shoppingMode === "drive"){
+    confirmShoppingDrive();
+  } else {
+    await confirmShoppingSheets();
+  }
+}
+
+
+
 function recalcShoppingScaling(){
   var data = window._shoppingData;
   if(!data) return;
