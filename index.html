@@ -2131,6 +2131,43 @@ function recalcShoppingScaling(){
   document.getElementById("shoppingIngList").innerHTML = html;
 }
 
+// ==== CATEGORISATION INGREDIENTS ====
+function categorizeIngredient(ing){
+  var nom = (ing.nom||ing.sub||ing.original||"").toLowerCase().trim();
+  var tag = (ing.tag_ingredient||"").toLowerCase().trim().replace(/_/g," ");
+
+  // 1. BOUCHERIE
+  if(ing.est_viande||ing.est_poisson||
+     tag==="viande"||tag==="poisson"||tag==="charcuterie"||tag==="fruit de mer"||
+     /^(poulet|filet de poulet|blanc de poulet|boeuf|porc|veau|agneau|dinde|lapin|canard|jambon|lardons|bacon|saumon|thon|cabillaud|crevette|moule|sardine|anchois|merlan|lieu|dos de cabillaud)/.test(nom)){
+    return "Boucherie";
+  }
+
+  // Herbes qui sont en realite des condiments
+  var condimentHerbs = /^(persillade|fines herbes|herbes de provence|bouquet garni|thym sec|romarin sec|basilic sec|oregano|laurier|coriandre moulue|cumin|curry|paprika|piment|muscade|cannelle|gingembre)/.test(nom);
+
+  // 2. PRIMEUR : legumes, fruits frais, herbes fraiches
+  if((tag==="legume"||tag==="fruit"||tag==="herbe"||tag==="herbe aromatique"||
+      tag==="legume aromate"||tag==="aromate") &&
+     !/(lentille|pois chiche|haricot|feve|soja|tofu|seitan|tempeh)/.test(nom) &&
+     !condimentHerbs){
+    return "Primeur";
+  }
+  if(/^(tomate|carotte|courgette|aubergine|poivron|oignon|ail|echalote|pomme|poire|banane|citron|orange|salade|epinard|brocoli|chou|poireau|navet|radis|champignon|basilic frais|persil frais|ciboulette|menthe fraiche|pomme de terre|patate douce|avocat|concombre|celeri|fenouil|asperge|artichaut|roquette|mache|haricot vert|petit pois|betterave|potiron|courge|fraise|framboise|myrtille|peche|abricot|mangue|ananas|kiwi|raisin)/.test(nom) && !condimentHerbs){
+    return "Primeur";
+  }
+
+  // 3. CONDIMENTS : sauces, epices, matieres grasses, assaisonnements
+  if(tag==="condiment"||tag==="epice"||tag==="sauce"||tag==="assaisonnement"||tag==="aromate sec"||
+     tag==="matiere grasse"||tag==="huile"||tag==="panure"||tag==="farine"||condimentHerbs||
+     /^(sel|poivre|moutarde|vinaigre|sauce soja|sauce worcester|tabasco|ketchup|mayonnaise|huile|beurre|margarine|sucre|miel|sirop|farine|maizena|levure|bicarbonate|curry|herbes de provence|persillade|bouquet garni|bouillon|concentre de tomate|coulis|chapelure|panko|fecule|creme balsamique|vinaigre balsamique)/.test(nom)){
+    return "Condiments";
+  }
+
+  // 4. SUPERMARCHE : laitages, fromages, oeufs, feculents...
+  return "Supermarche";
+}
+
 // ==== UTILS ====
 function openModal(id){document.getElementById(id).classList.add("open")}
 function closeModal(id){document.getElementById(id).classList.remove("open")}
