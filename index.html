@@ -745,7 +745,8 @@ function renderOriginalCard(d){
         infoHtml += '<span style="font-size:10px;color:var(--tx3);font-weight:500;text-align:right">Prot.</span>';
         getFamille().forEach(function(m, i){
           var dishKcal = calcMainDishKcal(m);
-          var grammage = (kcalPerPers > 0 && baseWeight > 0) ? Math.round(dishKcal / kcalPerPers * baseWeight) : 0;
+          // Portion proportionnelle aux besoins vs adulte reference (2000 kcal)
+          var grammage = Math.round(baseWeight * tkcal(m) / 2000);
           var prot = Math.round(dishKcal * 0.15 / 4);
           var col = m.goal==="recomp" ? "#7C3AED" : "var(--gr)";
           infoHtml += '<span style="font-size:13px;color:'+col+';font-weight:500">'+m.name.slice(0,1)+'</span>';
