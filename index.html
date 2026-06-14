@@ -305,7 +305,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);font-
       <button class="btn btns btnsm" onclick="addMember()">+ Ajouter un membre</button>
       <button class="btn btnp btnsm" onclick="forceSaveFamille()" id="famSaveBtn">Sauvegarder sur Drive</button>
     </div>
-    <div id="famSaveStatus" style="font-size:12px;color:var(--gr);margin-bottom:8px"></div>
+    <div id="famSaveStatus" style="font-size:12px;margin-bottom:8px"></div>
     <div id="familleList"></div>
   </div>
 </div>
@@ -1035,7 +1035,16 @@ function buildConvPrompt(){
     'Pere & Mere: recomposition, proteines max, deficit calorique\n'+
     'Enfants: croissance, portions adaptees au poids\n\n'+
     'INSTRUCTIONS:\n'+
-    '- Pour chaque ingredient: calcule orig_kcal_total (calories originales) et sub_kcal_total (calories apres substitution)\n'+
+    '- REGLES DE SUBSTITUTION:\n'+
+    '  * Si ingredient problematique (charcuterie grasse, creme, farine blanche, sucre, etc.): REMPLACE par un vrai substitut sain (ex: chorizo->dinde emincee, creme->yaourt grec 0%, farine blanche->farine de sarrasin)\n'+
+    '  * Si ingredient deja optimal (huile olive, legumes, proteines maigres, lentilles, legumineuses): sub=null, quantite inchangee\n'+
+    '  * Si ingredient acceptable mais en trop grande quantite: sub=null, reduis sub_qty uniquement\n'+
+    '  * JAMAIS: ingredient->meme ingredient (parmesan->parmesan, huile->huile vierge = interdit)\n'+
+    '  * Le sub doit etre substantiellement different et meilleur nutritionnellement\n'+
+    '  * Pour chaque ingredient substitue, propose 2 a 4 alternatives dans le champ "alternatives" (dont le substitut principal)\n'+
+    '  * Chaque alternative: nom, qty, unit, kcal_total (calories totales pour la recette), description courte (ex: "Option plus savoureuse")\n'+
+    '  * Trie les alternatives du plus sain au moins sain\n'+
+    '- Pour chaque ingredient: calcule orig_kcal_total (calories originales) et sub_kcal_total (calories apres)\n'+
     '- Calcule kcal_par_personne_apres = somme des sub_kcal_total divise par 5\n'+
     '- Calcule les portions (kcal et prot) pour chaque membre selon son mult\n'+
     '- Calcule atp_after entre 0 et 100 selon qualite nutritionnelle finale\n'+
@@ -1044,7 +1053,7 @@ function buildConvPrompt(){
     'Structure JSON:\n'+
     '{\n'+
     '  "recipe": {"title": "'+( d.recipe&&d.recipe.title||"")+' - version '+convOptions.type+'", "source": "'+( d.recipe&&d.recipe.source||"")+'" , "original_url": "'+( d.recipe&&d.recipe.original_url||"")+'" , "cuisine": "'+( d.recipe&&d.recipe.cuisine||"")+'" , "prep": "'+( d.recipe&&d.recipe.prep||"")+'" , "cook": "'+( d.recipe&&d.recipe.cook||"")+'" , "servings": 5, "emoji": "'+( d.recipe&&d.recipe.emoji||"")+'" , "type_plat": "'+( d.recipe&&d.recipe.type_plat||"plat")+'" , "atp_before": '+atpBefore+', "atp_after": number, "conversion_type": "'+convOptions.type+'" , "conversion_mods": '+JSON.stringify(convOptions.mods)+'},\n'+
-    '  "ingredients": [{"original": string, "orig_kcal_total": number, "atp_issue": string|null, "sub": string|null, "sub_qty": number, "sub_unit": string, "sub_kcal_total": number, "reason": string|null, "price": number, "drive_search": string, "supprime": bool}],\n'+
+    '  "ingredients": [{"original": string, "orig_kcal_total": number, "atp_issue": string|null, "sub": string|null, "sub_qty": number, "sub_unit": string, "sub_kcal_total": number, "reason": string|null, "alternatives": [{"nom": string, "qty": number, "unit": string, "kcal_total": number, "description": string}]|null, "price": number, "drive_search": string, "supprime": bool}],\n'+
     '  '+portStr+',\n'+
     '  "kcal_par_personne_avant": '+kcalAvant+',\n'+
     '  "kcal_par_personne_apres": number,\n'+
@@ -1434,19 +1443,41 @@ async function saveToDrive(){
   }
 }
 
+function updateSaveStatus(msg, color){
+  var el = document.getElementById("famSaveStatus");
+  if(el){ el.textContent = msg; el.style.color = color||"var(--tx3)"; }
+}
+
 function scheduleSave(){
-  // Restaurer le token depuis sessionStorage si necessaire
   if(!_googleToken){
     var t = localStorage.getItem("fh_google_token");
     if(t) _googleToken = t;
   }
+  // Verifier expiration token
+  var expiry = parseInt(localStorage.getItem("fh_token_expiry")||"0");
+  if(expiry && Date.now() > expiry){
+    handleTokenExpiry();
+    return;
+  }
+  updateSaveStatus("Modification en attente...", "var(--am)");
   if(_saveTimer) clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(function(){
+  _saveTimer = setTimeout(async function(){
     if(!_googleToken){
       var t = localStorage.getItem("fh_google_token");
       if(t) _googleToken = t;
     }
-    if(_googleToken) saveToDrive();
+    if(_googleToken){
+      try{
+        updateSaveStatus("Sauvegarde en cours...", "var(--am)");
+        await saveToDrive();
+        updateSaveStatus("Sauvegarde OK", "var(--gr)");
+        setTimeout(function(){ updateSaveStatus("",""); }, 3000);
+      }catch(e){
+        updateSaveStatus("Erreur sauvegarde: "+e.message, "var(--rd)");
+      }
+    } else {
+      updateSaveStatus("Non connecte a Drive", "var(--tx3)");
+    }
   }, 1500);
 }
 
@@ -1905,11 +1936,32 @@ function openSubsModal(){
       : delta < 0
         ? '<span style="font-size:11px;color:var(--rd);font-weight:500">+'+Math.abs(delta)+' kcal</span>'
         : '';
-    return '<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--bd)">'+
-      '<div style="flex:1;min-width:0">'+
+    // Alternatives selector
+    var alts = ing.alternatives || [];
+    var altHtml = "";
+    if(alts.length > 1){
+      altHtml = '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">';
+      alts.forEach(function(alt, ai){
+        var altDelta = (ing.orig_kcal_total||0) - (alt.kcal_total||0);
+        var isSelected = alt.nom === ing.sub;
+        var gain = altDelta > 0 ? '-'+altDelta+'kcal' : altDelta < 0 ? '+'+Math.abs(altDelta)+'kcal' : '=';
+        var style = isSelected
+          ? "background:var(--gr);color:#fff;border:1px solid var(--gr);"
+          : "background:var(--bg);color:var(--tx);border:1px solid var(--bd);";
+        altHtml += '<button onclick="selectAlt('+i+','+ai+')" '+
+          'style="font-size:11px;padding:3px 7px;border-radius:10px;cursor:pointer;'+style+'display:inline-flex;align-items:center;gap:4px">'+
+          '<span>'+alt.nom+'</span>'+
+          '<span style="opacity:0.8;font-size:10px">'+gain+'</span>'+
+          '</button>';
+      });
+      altHtml += '</div>';
+    }
+    return '<div style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--bd)">'+
+      '<div style="flex:1;min-width:0">'+ 
         '<div style="font-size:13px;font-weight:500;color:var(--gr)">'+ing.sub+'</div>'+
         '<div style="font-size:11px;color:var(--tx3);text-decoration:line-through">'+ing.original+'</div>'+
         (ing.reason ? '<div style="font-size:11px;color:var(--tx2);font-style:italic">'+ing.reason+'</div>' : '')+
+        altHtml+
       '</div>'+
       '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">'+
         deltaHtml+
@@ -1925,6 +1977,23 @@ function openSubsModal(){
   document.getElementById("subsList").innerHTML = html;
   updateSubsKcal();
   openModal("subsModal");
+}
+
+function selectAlt(ingIdx, altIdx){
+  var data = convertedAnalysis;
+  if(!data) return;
+  var withSubs = (data.ingredients||[]).filter(function(i){return i.sub&&!i.supprime;});
+  var ing = withSubs[ingIdx];
+  if(!ing || !ing.alternatives) return;
+  var alt = ing.alternatives[altIdx];
+  if(!alt) return;
+  // Mettre a jour l ingredient avec la nouvelle alternative
+  ing.sub = alt.nom;
+  ing.sub_qty = alt.qty;
+  ing.sub_unit = alt.unit;
+  ing.sub_kcal_total = alt.kcal_total;
+  // Re-rendre le modal
+  openSubsModal();
 }
 
 function updateSubsKcal(){
