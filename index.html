@@ -739,6 +739,7 @@ function renderOriginalCard(d){
           var mults = [1.35,1.0,1.1,0.82,0.62];
           var mult = mults[i]||1.0;
         var grammage = calcPortionWeight(d.ingredients, mult, d.recipe && d.recipe.servings || 1);
+        var kcalEstimate=Math.round(kcalPerPers*mult/2.0); if(grammage < kcalEstimate*0.8 && kcalPerPers > 0){ grammage = kcalEstimate; }
           var prot = Math.round(kcalPerPers * mult * 0.2 / 4);
           var col = m.goal==="recomp" ? "#7C3AED" : "var(--gr)";
           infoHtml += '<span style="font-size:13px;color:'+col+';font-weight:500">'+m.name.slice(0,1)+'</span>';
@@ -962,7 +963,8 @@ function calcPortionWeight(ingredients, mult, servings){
     total += qty * weight;
   });
   var srv = parseFloat(servings) || 1;
-  return Math.round(total * (mult||1) / srv);
+  var calculated = Math.round(total * (mult||1) / srv);
+  return Math.abs(calculated);
 }
 
 function portionsJson(){
