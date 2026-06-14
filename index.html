@@ -1041,9 +1041,12 @@ function buildConvPrompt(){
     '  * Si ingredient acceptable mais en trop grande quantite: sub=null, reduis sub_qty uniquement\n'+
     '  * JAMAIS: ingredient->meme ingredient (parmesan->parmesan, huile->huile vierge = interdit)\n'+
     '  * Le sub doit etre substantiellement different et meilleur nutritionnellement\n'+
-    '  * Pour chaque ingredient substitue, propose 2 a 4 alternatives dans le champ "alternatives" (dont le substitut principal)\n'+
-    '  * Chaque alternative: nom, qty, unit, kcal_total (calories totales pour la recette), description courte (ex: "Option plus savoureuse")\n'+
-    '  * Trie les alternatives du plus sain au moins sain\n'+
+    '  * Pour chaque ingredient substitue, propose 2 a 4 alternatives dans le champ "alternatives"\n'+
+    '  * Chaque alternative: nom (string), qty (nombre), unit (string), kcal_total (calories ABSOLUES de CET ingredient dans cette quantite, PAS une difference), description (string courte)\n'+
+    '  * EXEMPLE CORRECT: creme fraiche 400g orig_kcal_total=1400 -> alt yaourt grec 0% 400g kcal_total=240, alt fromage blanc 0% 400g kcal_total=200\n'+
+    '  * kcal_total de chaque alternative = qty * densite_calorique_de_cet_ingredient (ex: yaourt grec 0% = 0.59 kcal/g)\n'+
+    '  * Toutes les alternatives doivent avoir kcal_total < orig_kcal_total (moins calorique que l original)\n'+
+    '  * Trie du moins calorique au plus calorique\n'+
     '- Pour chaque ingredient: calcule orig_kcal_total (calories originales) et sub_kcal_total (calories apres)\n'+
     '- Calcule kcal_par_personne_apres = somme des sub_kcal_total divise par 5\n'+
     '- Calcule les portions (kcal et prot) pour chaque membre selon son mult\n'+
@@ -1957,7 +1960,10 @@ function openSubsModal(){
       : deltaPerPers < 0
         ? '<span style="font-size:11px;color:var(--rd);font-weight:500">+'+Math.abs(deltaPerPers)+' kcal/pers</span>'
         : '';
-    var alts = ing.alternatives || [];
+    // Filtrer les alternatives qui augmentent les calories ou identiques a l original
+    var alts = (ing.alternatives || []).filter(function(a){
+      return (a.kcal_total||0) < (ing.orig_kcal_total||9999) && a.nom !== ing.original;
+    });
     var altHtml = "";
     if(alts.length > 0){
       altHtml = '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">';
@@ -1979,8 +1985,10 @@ function openSubsModal(){
     }
     return '<div style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--bd)">'+
       '<div style="flex:1;min-width:0">'+ 
-        '<div style="font-size:13px;font-weight:500;color:var(--gr)">'+ing.sub+'</div>'+
-        '<div style="font-size:11px;color:var(--tx3);text-decoration:line-through">'+ing.original+'</div>'+
+        '<div style="font-size:15px;font-weight:700;color:var(--gr);display:flex;align-items:center;gap:6px">'+
+        '<span style="font-size:12px;opacity:0.6;font-weight:400">&rarr;</span>'+ing.sub+
+        '</div>'+
+        '<div style="font-size:12px;color:var(--tx3);text-decoration:line-through;margin-top:1px">'+(ing.original||'')+
         (ing.reason ? '<div style="font-size:11px;color:var(--tx2);font-style:italic">'+ing.reason+'</div>' : '')+
         altHtml+
       '</div>'+
