@@ -1985,15 +1985,15 @@ function openSubsModal(){
     }
     return '<div style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--bd)">'+
       '<div style="flex:1;min-width:0">'+ 
-        '<div style="font-size:15px;font-weight:700;color:var(--gr);display:flex;align-items:center;gap:6px">'+
-        '<span style="font-size:12px;opacity:0.6;font-weight:400">&rarr;</span>'+ing.sub+
-        '</div>'+
-        '<div style="font-size:12px;color:var(--tx3);text-decoration:line-through;margin-top:1px">'+(ing.original||'')+
-        (ing.reason ? '<div style="font-size:11px;color:var(--tx2);font-style:italic">'+ing.reason+'</div>' : '')+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:15px;font-weight:700;color:var(--gr)">'+ing.sub+'</div>'+
+        '<div style="font-size:11px;color:var(--tx3);text-decoration:line-through;margin-top:1px">'+(ing.original||'')+'</div>'+
+        (ing.reason ? '<div style="font-size:11px;color:var(--tx2);font-style:italic;margin-top:2px">'+ing.reason+'</div>' : '')+
         altHtml+
       '</div>'+
       '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">'+
         deltaHtml+
+        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">'+
         '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">'+
           '<input type="checkbox" id="sub_'+i+'" checked style="width:16px;height:16px;cursor:pointer" '+
           'data-idx="'+i+'" onchange="updateSubsKcal()"/>'+
