@@ -1397,7 +1397,13 @@ function disconnectGoogle(){
 
 // --- Lecture / ecriture Drive via Cloudflare Worker ---
 async function loadFromDrive(){
-  if(!_googleToken) return;
+  if(!_googleToken){
+    // Pas de token: charger depuis localStorage
+    _driveLoaded = true;
+    var localFam = localStorage.getItem("fh_famille");
+    if(localFam){ try{ _famille = JSON.parse(localFam); FAM = _famille; }catch(e){} }
+    return;
+  }
   try{
     var resp = await fetch("https://famille-healthy-api.rofes-julien.workers.dev/drive", {
       method: "POST",
@@ -1405,8 +1411,11 @@ async function loadFromDrive(){
       body: JSON.stringify({ action: "read" })
     });
     if(resp.status === 401){
-      // Ne pas effacer le token immediatement - peut etre un probleme temporaire
       console.log("Drive 401 - token potentiellement expire");
+      _driveLoaded = true; // Debloquer l edition meme si echec
+      // Utiliser localStorage comme fallback
+      var localFam = localStorage.getItem("fh_famille");
+      if(localFam){ try{ _famille = JSON.parse(localFam); FAM = _famille; }catch(e){} }
       return;
     }
     var data = await resp.json();
@@ -1417,6 +1426,7 @@ async function loadFromDrive(){
     FAM = _famille;
     localStorage.setItem("fh_recipes", JSON.stringify(_recipes));
     localStorage.setItem("fh_famille", JSON.stringify(_famille));
+    _driveLoaded = true;
     renderFamilyCards();
     renderHistory();
     renderDbStatus();
@@ -1727,9 +1737,17 @@ async function forceSaveFamille(){
 }
 
 function renderFamilleEditor(){
-  var membres = getFamille();
   var container = document.getElementById("familleList");
   if(!container) return;
+  // Attendre que Drive soit charge avant d afficher l editeur
+  if(!_driveLoaded && _googleToken){
+    container.innerHTML = "<div style='text-align:center;padding:30px;color:var(--tx3)'>" +
+      "<div style='font-size:14px'>Chargement des donnees...</div>" +
+      "<div style='font-size:12px;margin-top:4px'>Synchronisation avec Google Drive</div></div>";
+    setTimeout(renderFamilleEditor, 500);
+    return;
+  }
+  var membres = getFamille();
   container.innerHTML = "";
   membres.forEach(function(m, idx){
     var div = document.createElement("div");
