@@ -1929,29 +1929,32 @@ function openSubsModal(){
     return;
   }
 
+  var servings = (convertedAnalysis && convertedAnalysis.recipe && convertedAnalysis.recipe.servings) || 5;
   var html = withSubs.map(function(ing, i){
     var delta = (ing.orig_kcal_total||0) - (ing.sub_kcal_total||0);
-    var deltaHtml = delta > 0
-      ? '<span style="font-size:11px;color:var(--gr);font-weight:500">-'+delta+' kcal</span>'
-      : delta < 0
-        ? '<span style="font-size:11px;color:var(--rd);font-weight:500">+'+Math.abs(delta)+' kcal</span>'
+    var deltaPerPers = Math.round(delta / servings);
+    // Afficher le gain PAR PERSONNE sur le badge principal
+    var deltaHtml = deltaPerPers > 0
+      ? '<span style="font-size:11px;color:var(--gr);font-weight:500">-'+deltaPerPers+' kcal/pers</span>'
+      : deltaPerPers < 0
+        ? '<span style="font-size:11px;color:var(--rd);font-weight:500">+'+Math.abs(deltaPerPers)+' kcal/pers</span>'
         : '';
-    // Alternatives selector
     var alts = ing.alternatives || [];
     var altHtml = "";
-    if(alts.length > 1){
+    if(alts.length > 0){
       altHtml = '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">';
       alts.forEach(function(alt, ai){
         var altDelta = (ing.orig_kcal_total||0) - (alt.kcal_total||0);
+        var altPerPers = Math.round(altDelta / servings);
         var isSelected = alt.nom === ing.sub;
-        var gain = altDelta > 0 ? '-'+altDelta+'kcal' : altDelta < 0 ? '+'+Math.abs(altDelta)+'kcal' : '=';
-        var style = isSelected
-          ? "background:var(--gr);color:#fff;border:1px solid var(--gr);"
-          : "background:var(--bg);color:var(--tx);border:1px solid var(--bd);";
+        var gainLabel = altPerPers > 0 ? '-'+altPerPers+'/p' : altPerPers < 0 ? '+'+Math.abs(altPerPers)+'/p' : '=';
+        var gainColor = altPerPers > 0 ? "#22c55e" : altPerPers < 0 ? "#ef4444" : "#888";
+        var bg = isSelected ? "var(--gr)" : "var(--bg)";
+        var fg = isSelected ? "#fff" : "var(--tx)";
         altHtml += '<button onclick="selectAlt('+i+','+ai+')" '+
-          'style="font-size:11px;padding:3px 7px;border-radius:10px;cursor:pointer;'+style+'display:inline-flex;align-items:center;gap:4px">'+
+          'style="font-size:11px;padding:3px 8px;border-radius:10px;cursor:pointer;background:'+bg+';color:'+fg+';border:1px solid '+( isSelected?"var(--gr)":"var(--bd)")+';display:inline-flex;align-items:center;gap:5px">'+
           '<span>'+alt.nom+'</span>'+
-          '<span style="opacity:0.8;font-size:10px">'+gain+'</span>'+
+          '<span style="font-size:10px;color:'+( isSelected?"rgba(255,255,255,0.85)":gainColor)+';font-weight:600">'+gainLabel+'</span>'+
           '</button>';
       });
       altHtml += '</div>';
@@ -2011,8 +2014,15 @@ function updateSubsKcal(){
     return sum + (ing.sub_kcal_total||ing.orig_kcal_total||0);
   }, 0);
   var perPerson = Math.round(total/5);
+  var kcalAvant = convertedAnalysis && convertedAnalysis.kcal_par_personne_avant || convertedAnalysis && convertedAnalysis.kcal_par_personne || 0;
+  var gain = kcalAvant > 0 ? Math.round(kcalAvant - perPerson) : 0;
+  var gainHtml = gain > 0
+    ? " <span style='color:var(--gr);font-weight:600'>(-"+gain+" kcal/pers)</span>"
+    : gain < 0
+      ? " <span style='color:var(--rd);font-weight:600'>(+"+Math.abs(gain)+" kcal/pers)</span>"
+      : "";
   var el = document.getElementById("subsKcalInfo");
-  if(el) el.textContent = "Total : "+total+" kcal - "+perPerson+" kcal/pers";
+  if(el) el.innerHTML = "Avant : "+(kcalAvant||"?")+' kcal/pers &rarr; Apres : '+perPerson+" kcal/pers"+gainHtml;
 }
 
 function confirmSubs(){
