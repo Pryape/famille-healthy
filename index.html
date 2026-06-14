@@ -1357,6 +1357,7 @@ function checkOAuthRedirect(){
     if(token){
       _googleToken = token;
       localStorage.setItem("fh_google_token", token);
+      localStorage.setItem("fh_token_expiry", (Date.now() + 3500*1000).toString());
       history.replaceState(null, "", window.location.pathname);
       renderDbStatus();
       loadFromDrive().then(function(){
@@ -1390,6 +1391,7 @@ async function loadFromDrive(){
       return;
     }
     var data = await resp.json();
+    if(checkTokenExpiry(data)) return;
     if(data.error){ toast("Erreur Drive: " + data.error); return; }
     _recipes = Array.isArray(data.recipes) ? data.recipes : [];
     _famille = Array.isArray(data.famille) && data.famille.length > 0 ? data.famille : DEFAULT_FAM.slice();
@@ -2232,6 +2234,30 @@ function categorizeIngredient(ing){
   return "Supermarche";
 }
 
+// ==== TOKEN EXPIRY HANDLER ====
+function handleTokenExpiry(){
+  // Effacer le token expire
+  _googleToken = null;
+  localStorage.removeItem("fh_google_token");
+  // Notifier l utilisateur avec un toast persistant + bouton
+  var t = document.getElementById("toast");
+  if(t){
+    t.innerHTML = "Session Google expiree. <button onclick=\"startGoogleAuth()\" style=\"margin-left:8px;padding:2px 8px;border:1px solid #fff;border-radius:4px;background:transparent;color:#fff;cursor:pointer;font-size:12px\">Reconnecter</button>";
+    t.classList.add("show");
+    // Ne pas auto-cacher ce toast
+  }
+  renderDbStatus();
+}
+
+function checkTokenExpiry(result){
+  if(result && (result.token_expired || result.error === "token_expired" ||
+     (typeof result.error === "string" && result.error.includes("token_expired")))){
+    handleTokenExpiry();
+    return true;
+  }
+  return false;
+}
+
 // ==== UTILS ====
 function openModal(id){document.getElementById(id).classList.add("open")}
 function closeModal(id){document.getElementById(id).classList.remove("open")}
@@ -2251,7 +2277,13 @@ function fallbackCopy(text,msg){
 // ==== SHEETS / DRIVE CONFIRM ====
 async function confirmShoppingSheets(){
   var data = convertedAnalysis||originalAnalysis;
-  if(!data||!_googleToken) return;
+  if(!data) return;
+  // Verifier si le token est expire avant d appeler l API
+  var expiry = parseInt(localStorage.getItem("fh_token_expiry")||"0");
+  if(!_googleToken || (expiry && Date.now() > expiry)){
+    handleTokenExpiry();
+    return;
+  }
   var statusEl = document.getElementById("shoppingStatus");
   var linkEl = document.getElementById("shoppingLink");
   var btnEl = document.getElementById("shoppingConfirmBtn");
@@ -2292,6 +2324,7 @@ async function confirmShoppingSheets(){
       })
     });
     var result = await resp.json();
+    if(checkTokenExpiry(result)){ if(btnEl) btnEl.style.display=""; return; }
     if(result.alreadyPlanned){
       statusEl.style.color = "var(--am)";
       statusEl.innerHTML = result.recipeTitle+" est deja dans votre liste de courses.<br>"+
