@@ -1979,7 +1979,9 @@ function openSubsModal(){
 
   var servings = (convertedAnalysis && convertedAnalysis.recipe && convertedAnalysis.recipe.servings) || 5;
   var html = withSubs.map(function(ing, i){
-    var delta = (ing.orig_kcal_total||0) - (ing.sub_kcal_total||0);
+    var subKcalEstimate = estimateKcal(ing.sub, ing.sub_qty, ing.sub_unit);
+    var subKcal = subKcalEstimate !== null ? subKcalEstimate : (ing.sub_kcal_total||0);
+    var delta = (ing.orig_kcal_total||0) - subKcal;
     var deltaPerPers = Math.round(delta / servings);
     // Afficher le gain PAR PERSONNE sur le badge principal
     var deltaHtml = deltaPerPers > 0
@@ -2002,7 +2004,10 @@ function openSubsModal(){
     if(alts.length > 0){
       altHtml = '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">';
       alts.forEach(function(alt, ai){
-        var altDelta = (ing.orig_kcal_total||0) - (alt.kcal_total||0);
+        // Recalculer les kcal de l alternative avec notre table fiable
+        var estimatedKcal = estimateKcal(alt.nom, alt.qty, alt.unit);
+        var altKcal = estimatedKcal !== null ? estimatedKcal : (alt.kcal_total||0);
+        var altDelta = (ing.orig_kcal_total||0) - altKcal;
         var altPerPers = Math.round(altDelta / servings);
         var isSelected = alt.nom === ing.sub;
         var gainLabel = altPerPers > 0 ? '-'+altPerPers+'/p' : altPerPers < 0 ? '+'+Math.abs(altPerPers)+'/p' : '=';
@@ -2467,6 +2472,61 @@ function recalcShoppingScaling(){
     });
   });
   document.getElementById("shoppingIngList").innerHTML = html;
+}
+
+// ==== DENSITES CALORIQUES (kcal/100g ou kcal/100ml) ====
+var KCAL_DENSITY = {
+  // Laitages
+  "creme fraiche": 300, "creme liquide": 290, "creme epaisse": 340,
+  "yaourt grec": 65, "yaourt grec 0%": 60, "yaourt nature": 60, "yaourt 0%": 45,
+  "fromage blanc": 75, "fromage blanc 0%": 50, "petit suisse": 95,
+  "lait": 65, "lait entier": 65, "lait demi ecreme": 47, "lait ecreme": 35,
+  "creme de soja": 180, "creme de soja legere": 120, "creme d avoine": 150,
+  // Fromages
+  "parmesan": 400, "parmesan rape": 400, "parmesan allege": 280,
+  "gruyere": 380, "emmental": 380, "comte": 410, "mozzarella": 280,
+  "levure maltee": 350, "poudre d amande": 600,
+  // Matieres grasses
+  "beurre": 750, "huile": 900, "huile d olive": 900, "huile d olive vierge": 900,
+  "margarine": 720,
+  // Viandes/poissons
+  "chorizo": 450, "dinde": 110, "dinde fumee": 130, "dinde emincee": 110,
+  "jambon": 120, "jambon degraisse": 110, "des de jambon": 120,
+  "poulet": 165, "blanc de poulet": 110, "tofu": 80, "tofu fume": 145,
+  "boeuf": 250, "porc": 240, "saumon": 200, "cabillaud": 80, "thon": 130,
+  // Feculents
+  "pates": 350, "pates completes": 340, "pates de lentilles": 340,
+  "pates de lentilles corail": 340, "pates de sarrasin": 350, "pates sans gluten": 360,
+  "pates de pois chiches": 360, "riz": 350, "riz complet": 350, "quinoa": 370,
+  "pommes de terre": 80, "patate douce": 90, "chapelure": 380, "farine": 360,
+  // Legumineuses
+  "lentilles": 115, "pois chiches": 140, "haricots rouges": 110,
+  // Legumes/fruits (faibles)
+  "tomate": 20, "courgette": 17, "carotte": 40, "oignon": 40, "salade": 15,
+  "citron": 30, "ail": 140, "champignon": 25, "epinard": 25
+};
+
+function estimateKcal(nom, qty, unit){
+  var key = (nom||"").toLowerCase().trim()
+    .replace(/[''`]/g," ").replace(/\s+/g," ")
+    .replace(/[eéèêë]/g,"e").replace(/[aàâä]/g,"a").replace(/[oôö]/g,"o").replace(/ç/g,"c")
+    .replace(/\([^)]*\)/g,"").trim();
+  // Chercher la densite (match exact puis partiel)
+  var density = KCAL_DENSITY[key];
+  if(density === undefined){
+    for(var k in KCAL_DENSITY){
+      if(key.indexOf(k) >= 0 || k.indexOf(key) >= 0){ density = KCAL_DENSITY[k]; break; }
+    }
+  }
+  if(density === undefined) return null; // inconnu
+  // Convertir qty en grammes/ml
+  var grams = parseFloat(qty)||0;
+  var u = (unit||"g").toLowerCase().trim();
+  if(u==="kg"||u==="l") grams *= 1000;
+  else if(u==="cl") grams *= 10;
+  else if(u==="cas") grams *= 15;
+  else if(u==="cac") grams *= 5;
+  return Math.round(density * grams / 100);
 }
 
 // ==== CATEGORISATION INGREDIENTS ====
