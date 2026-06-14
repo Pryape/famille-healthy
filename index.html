@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html><!-- v202606132119 -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -932,15 +932,35 @@ function backToConvOptions(){
 
 function calcPortionWeight(ingredients, mult, servings){
   var total = 0;
+  // Poids approximatifs par unite courante
+  var unitWeights = {
+    "g":1, "ml":1, "kg":1000, "l":1000, "cl":10,
+    "cac":5, "cas":15,
+    "pincee":1, "pincees":1,
+    "tranche":30, "tranches":30,
+    "portion":100, "portions":100,
+    "oeuf":55, "oeufs":55,
+    "poignee":30, "poignees":30,
+    "piece":20, "pieces":20,
+    "unite":30, "unites":30,
+    "filet":120, "filets":120,
+    "gousse":5, "gousses":5,
+    "brin":2, "brins":2,
+    "feuille":1, "feuilles":1,
+    "botte":150, "bottes":150,
+    "boite":400, "boites":400,
+    "sachet":100, "sachets":100
+  };
   (ingredients||[]).forEach(function(ing){
     if(ing.supprime) return;
     var qty = parseFloat(ing.sub_qty || ing.quantite || ing.qty || 0);
-    var unit = (ing.sub_unit || ing.unite || ing.unit || "").toLowerCase().trim();
-    if(unit === "g" || unit === "ml") total += qty;
-    else if(unit === "kg" || unit === "l") total += qty * 1000;
-    else if(unit === "cl") total += qty * 10;
+    var unit = (ing.sub_unit || ing.unite || ing.unit || "g").toLowerCase().trim()
+      .replace(/[''`]/g,"").replace(/\s+/g,"");
+    // Normaliser les accents
+    unit = unit.replace(/e|e|e/g,"e").replace(/a|a/g,"a").replace(/\./g,"");
+    var weight = unitWeights[unit] || 0;
+    total += qty * weight;
   });
-  // Diviser par le nb de portions reel, pas hardcode 5
   var srv = parseFloat(servings) || 1;
   return Math.round(total * (mult||1) / srv);
 }
