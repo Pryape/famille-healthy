@@ -731,7 +731,11 @@ function renderOriginalCard(d){
       (function(){
         var kcalPerPers = d.kcal_par_personne || 0;
         var srv = (d.recipe && d.recipe.servings) || 1;
+        var srv = (d.recipe && d.recipe.servings) || 1;
         var baseWeight = calcPortionWeight(d.ingredients, 1, srv);
+        // Poids minimum base sur densite calorique standard (1.5 kcal/g)
+        var calBasedWeight = kcalPerPers > 0 ? Math.round(kcalPerPers / 1.5) : 0;
+        if(calBasedWeight > baseWeight) baseWeight = calBasedWeight;
         var pct = Math.round(kcalPerPers / 2000 * 100);
         var barWidth = Math.min(pct, 100);
         var infoHtml = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 0;border-bottom:2px solid var(--bd)">';
