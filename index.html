@@ -750,7 +750,9 @@ function renderOriginalCard(d){
           // Vraies kcal apportees par cette portion
           var kcalServed = kcalPerPers > 0 && baseWeight > 0 ? Math.round(grammage * kcalPerPers / baseWeight) : 0;
           var pctDay = Math.round(kcalServed / tkcal(m) * 100);
-          var prot = kcalPerPers > 0 && baseWeight > 0 ? Math.round(grammage * ((d.ingredients||[]).reduce(function(s,ing){return s+(parseFloat(ing.proteines||ing.prot||0));},0)/(kcalPerPers*srv||1))) : Math.round(kcalServed*0.15/4);
+          // Proteines estimees selon type de recette
+          var protRatio = (d.types && (d.types.viande||d.types.poisson)) ? 0.30 : 0.12;
+          var prot = Math.round(kcalServed * protRatio / 4);
           var col = m.goal==="recomp" ? "#7C3AED" : "var(--gr)";
           infoHtml += '<span style="font-size:13px;color:'+col+';font-weight:500">'+m.name.slice(0,1)+'</span>';
           infoHtml += '<span style="font-size:13px">'+m.name+'</span>';
