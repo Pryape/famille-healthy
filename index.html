@@ -300,7 +300,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);font-
     <div class="pt">Profils <em style="font-style:italic;color:var(--gr)">famille</em></div>
     <div class="ps">Configurez les membres et leurs objectifs nutritionnels</div>
   </div>
-  <div class="ct" id="familleList"></div>
+  <div class="ct">
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btns btnsm" onclick="addMember()">+ Ajouter un membre</button>
+      <button class="btn btnp btnsm" onclick="forceSaveFamille()" id="famSaveBtn">Sauvegarder sur Drive</button>
+    </div>
+    <div id="famSaveStatus" style="font-size:12px;color:var(--gr);margin-bottom:8px"></div>
+    <div id="familleList"></div>
+  </div>
 </div>
 
 <!-- PAGE HISTORIQUE -->
@@ -1643,6 +1650,30 @@ var ACT_FACTORS = [
   {val:1.72,  label:"Tres actif (sport intensif quotidien)"},
   {val:1.9,   label:"Athlete (2 seances/j)"}
 ];
+
+async function forceSaveFamille(){
+  var btn = document.getElementById("famSaveBtn");
+  var status = document.getElementById("famSaveStatus");
+  if(btn) btn.disabled = true;
+  if(status) status.textContent = "Sauvegarde en cours...";
+  if(!_googleToken){
+    var t = localStorage.getItem("fh_google_token");
+    if(t) _googleToken = t;
+  }
+  if(!_googleToken){
+    if(status){ status.textContent = "Non connecte a Google Drive"; status.style.color="var(--rd)"; }
+    if(btn) btn.disabled = false;
+    return;
+  }
+  try{
+    await saveToDrive();
+    if(status){ status.textContent = "Sauvegarde reussie !"; status.style.color="var(--gr)"; }
+    setTimeout(function(){ if(status) status.textContent=""; }, 3000);
+  }catch(e){
+    if(status){ status.textContent = "Erreur: "+e.message; status.style.color="var(--rd)"; }
+  }
+  if(btn) btn.disabled = false;
+}
 
 function renderFamilleEditor(){
   var membres = getFamille();
