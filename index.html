@@ -2067,7 +2067,9 @@ function recalcShoppingScaling(){
   document.querySelectorAll(".present-cb:checked").forEach(function(cb){
     var idx = parseInt(cb.dataset.idx)||0;
     presentEquiv += defaultMults[idx] || 1.0;
-    if(fam[idx]) presentNames.push(fam[idx].name);
+    // Lire le nom depuis le label dans le DOM (plus fiable que fam[idx])
+    var label = cb.parentElement ? cb.parentElement.textContent.trim() : (fam[idx] ? fam[idx].name : "");
+    if(label) presentNames.push(label);
   });
 
   // Restes pour
@@ -2076,7 +2078,8 @@ function recalcShoppingScaling(){
   document.querySelectorAll(".leftover-cb:checked").forEach(function(cb){
     var idx = parseInt(cb.dataset.idx)||0;
     leftoverEquiv += defaultMults[idx] || 1.0;
-    if(fam[idx]) leftoverNames.push(fam[idx].name);
+    var label = cb.parentElement ? cb.parentElement.textContent.trim() : (fam[idx] ? fam[idx].name : "");
+    if(label) leftoverNames.push(label);
   });
 
   // Invites
@@ -2243,7 +2246,7 @@ async function confirmShoppingSheets(){
         presentNames: ctx.presentNames||[],
         leftoverNames: ctx.leftoverNames||[],
         guests: ctx.guests||0,
-        ratio: ctx.ratio||1,
+        ratio: (ctx.ratio !== undefined ? ctx.ratio : 1),
         portionsDetail: portionsDetail
       })
     });
