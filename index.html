@@ -1988,7 +1988,14 @@ function openSubsModal(){
         ? '<span style="font-size:11px;color:var(--rd);font-weight:500">+'+Math.abs(deltaPerPers)+' kcal/pers</span>'
         : '';
     // Filtrer les alternatives qui augmentent les calories ou identiques a l original
-    var alts = (ing.alternatives || []).filter(function(a){
+    var alts = (ing.alternatives || []).slice();
+    // S assurer que le substitut principal est dans la liste
+    var hasMain = alts.some(function(a){return a.nom === ing.sub;});
+    if(!hasMain && ing.sub){
+      alts.unshift({nom:ing.sub, qty:ing.sub_qty, unit:ing.sub_unit, kcal_total:ing.sub_kcal_total, description:ing.reason||""});
+    }
+    // Filtrer celles qui augmentent les calories ou identiques a l original
+    alts = alts.filter(function(a){
       return (a.kcal_total||0) < (ing.orig_kcal_total||9999) && a.nom !== ing.original;
     });
     var altHtml = "";
