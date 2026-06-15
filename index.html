@@ -153,6 +153,8 @@ body.sb-collapsed .page{margin-left:60px}
 .empty-sub{font-size:13px;color:var(--tx2);max-width:340px;line-height:1.5;margin-bottom:8px}
 .ptitle{border:none;background:transparent;padding:0;font-size:14px;font-weight:500;color:var(--tx);cursor:pointer;text-align:left;font-family:"DM Sans",sans-serif;line-height:1.3}
 .ptitle:hover{color:var(--gr)}
+.rtitle-btn{border:none;background:transparent;padding:0;font-size:14px;font-weight:500;color:var(--tx);cursor:pointer;text-align:left;font-family:"DM Sans",sans-serif;line-height:1.3;display:block}
+.rtitle-btn:hover{color:var(--gr)}
 </style>
 </head>
 <body>
@@ -844,7 +846,7 @@ function renderPanier(){
             '<button onclick="retirerDuPanier(\''+p.id+'\')" style="color:var(--rd)">Retirer de la semaine</button>'+
           '</div>'+
       '</div>'+
-    '</div>';
+    '</div></div>';
   }).join("");
 
   if(actions) actions.style.display = "block";
@@ -1064,7 +1066,7 @@ function renderRecipes(){
     return '<div class="ritem">'+
       '<div class="rthumb">'+emoji+'</div>'+
       '<div class="rinfo">'+
-        '<div class="rtitle">'+esc(r.title||"Recette")+'</div>'+
+        '<button class="rtitle-btn" onclick="openHistoryRecette(\''+r.id+'\')">'+(r.source==="cooked"?'<span style="font-size:11px;color:var(--gr);font-weight:500;margin-right:6px">Cuisinee</span>':'')+esc(r.title||"Recette")+'</button>'+
         '<div class="rmeta">'+nutriBadge(nutri)+' - '+convType+' - '+srcLabel+(date?' - '+date:'')+'</div>'+
         '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
           (archived
@@ -1685,6 +1687,44 @@ async function nouvelleSemaine(){
   }
   scheduleSaveGeneric();
   renderPanier();
+}
+
+
+/* ---------- Detail recette depuis l'historique ---------- */
+function openHistoryRecette(recipeId){
+  var r = getRecipes().find(function(x){ return x.id===recipeId; });
+  if(!r){ toast("Recette introuvable"); return; }
+  if(!r.data){
+    // Donnees allegees - proposer re-analyse
+    if(r.url && confirm("Les donnees completes de cette recette ont ete allégées pour économiser de l\'espace. Voulez-vous la re-analyser ?")){
+      reanalyzeRecipe(recipeId);
+    }
+    return;
+  }
+  var data = r.data;
+  var mode = r.context === "converted" ? "converted" : "original";
+  var el = document.getElementById("recipeModalContent");
+  if(!el) return;
+
+  var srcLink = (data.recipe && data.recipe.original_url)
+    ? '<a href="'+esc(data.recipe.original_url)+'" target="_blank" rel="noopener" style="font-size:12px;color:var(--bl);display:inline-flex;align-items:center;gap:4px;margin-top:4px">'+
+        '<svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'+
+        'Voir la recette originale</a>'
+    : '';
+
+  var dateLabel = r.cookedAt
+    ? '<div style="font-size:12px;color:var(--tx2);margin-top:2px">Cuisinee le '+formatDate(r.cookedAt)+'</div>'
+    : r.savedAt
+      ? '<div style="font-size:12px;color:var(--tx2);margin-top:2px">Sauvegardee le '+formatDate(r.savedAt)+'</div>'
+      : '';
+
+  el.innerHTML =
+    '<button onclick="closeModal(\'recipeModal\')" style="position:absolute;top:14px;right:14px;border:none;background:transparent;font-size:22px;cursor:pointer;color:var(--tx3)">×</button>'+
+    '<div style="font-family:Fraunces,Georgia,serif;font-size:20px;font-weight:500;line-height:1.2;margin-bottom:4px">'+esc(r.title||"Recette")+'</div>'+
+    dateLabel + srcLink +
+    '<div style="margin-top:14px">'+renderRecipeCard(data, mode)+'</div>';
+
+  openModal("recipeModal");
 }
 
 /* ---------- Recettes : reutilisation ---------- */
