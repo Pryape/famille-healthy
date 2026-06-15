@@ -751,9 +751,9 @@ function recipeEmoji(data){
 
 /* ---------- PAGE MA SEMAINE ---------- */
 var STATUTS = {
-  a_prevoir:      {label:"A prevoir",      color:"var(--tx2)", bg:"var(--sf2)"},
-  courses_faites: {label:"Courses faites", color:"var(--bl)",  bg:"var(--bll)"},
-  cuisine:        {label:"Cuisine",        color:"var(--gr)",  bg:"var(--grl)"}
+  a_prevoir:      {label:"A prevoir",      color:"#6B7280", bg:"#F3F4F6"},
+  courses_faites: {label:"Courses commandees", color:"#1D4ED8", bg:"#EFF6FF"},
+  cuisine:        {label:"Cuisine",        color:"#166534", bg:"#F0FDF4"}
 };
 
 var JOURS = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
@@ -827,7 +827,7 @@ function renderPanier(){
         '</div>'+
         // Infos
         '<div style="flex:1;min-width:0">'+
-          '<button onclick="openPanierRecette(\''+p.id+'\'" class="ptitle">'+esc(r.title||"Recette")+(p.converted?' <span class="chip cg" style="font-size:10px">ATP</span>':'')+'</button>'+
+          '<button onclick="openPanierRecette(\''+p.id+'\')" class="ptitle">'+esc(r.title||"Recette")+(p.converted?' <span class="chip cg" style="font-size:10px">ATP</span>':'')+'</button>'+
           '<div style="font-size:12px;color:var(--tx2);margin:3px 0 7px">'+esc(conv)+'</div>'+
           '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:'+st.color+';background:'+st.bg+';padding:3px 10px;border-radius:20px">'+
             '<span style="width:6px;height:6px;border-radius:50%;background:'+st.color+'"></span>'+st.label+'</span>'+
@@ -838,11 +838,11 @@ function renderPanier(){
           '<button class="pmenu-btn" onclick="togglePMenu(\''+p.id+'\',event)" aria-label="Plus d\'options">'+
             '<svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>'+
           '</button>'+
-          '<div class="pmenu" id="pmenu-'+p.id+'">'+
-            '<button onclick="editConvives(\''+p.id+'\')">Modifier les convives</button>'+
+          '<div class="pmenu" id="pmenu-'+p.id+'">'+ 
+            (p.statut==="a_prevoir" ? '<button onclick="setStatutPanier(\''+p.id+'\',\'courses_faites\')" >Marquer courses commandees</button>' : '<button onclick="setStatutPanier(\''+p.id+'\',\'a_prevoir\')" >Remettre en a prevoir</button>')+
+            '<button onclick="editConvives(\''+p.id+'\')" >Modifier les convives</button>'+
             '<button onclick="retirerDuPanier(\''+p.id+'\')" style="color:var(--rd)">Retirer de la semaine</button>'+
           '</div>'+
-        '</div>'+
       '</div>'+
     '</div>';
   }).join("");
@@ -1551,6 +1551,12 @@ function togglePMenu(id, ev){
   if(!wasOpen) menu.classList.add("open");
 }
 document.addEventListener("click", function(){ document.querySelectorAll(".pmenu.open").forEach(function(m){ m.classList.remove("open"); }); });
+
+function setStatutPanier(id, statut){
+  var p = getPanier();
+  var item = p.find(function(x){ return x.id===id; });
+  if(item){ item.statut = statut; setPanier(p); scheduleSaveGeneric(); renderPanier(); }
+}
 
 function setPanierJour(id, jour){
   var p = getPanier();
