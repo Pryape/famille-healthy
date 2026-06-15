@@ -1089,7 +1089,7 @@ function renderRecipes(){
       '<div class="rinfo">'+
         '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">'+
           '<button class="rtitle-btn" onclick="openHistoryRecette(\''+r.id+'\')">'+noteHtml+(r.source==="cooked"?'<span style="font-size:11px;color:var(--gr);font-weight:500;margin-right:4px">Cuisinee</span>':'')+esc(r.title||"Recette")+'</button>'+
-          '<button onclick="deleteRecipeFromHistory(\''+r.id+'\'" aria-label="Supprimer" style="border:none;background:transparent;cursor:pointer;color:var(--tx3);font-size:18px;flex-shrink:0;padding:0 2px;line-height:1" title="Supprimer de l&apos;historique">&times;</button>'+
+          '<button onclick="deleteRecipeFromHistory(\''+r.id+'\')" aria-label="Supprimer" style="border:none;background:transparent;cursor:pointer;color:var(--tx3);font-size:18px;flex-shrink:0;padding:0 2px;line-height:1" title="Supprimer de l&apos;historique">&times;</button>'+
         '</div>'+
         '<div class="rmeta">'+nutriBadge(nutri)+' - '+convType+(date?' - '+date:'')+' '+srcLabel+'</div>'+
         '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'+
@@ -1620,10 +1620,10 @@ function confirmRating(note, emoji){
     var url = r.original_url||"";
     var ctx = item.converted?"converted":"original";
 
-    // Chercher un existant (meme url + meme contexte)
-    var existingIdx = recipes.findIndex(function(x){
-      return x.url === url && x.context === ctx;
-    });
+    // Chercher un existant (meme url + meme contexte, peu importe saved/cooked)
+    var existingIdx = url ? recipes.findIndex(function(x){
+      return x.url === url && x.url !== "" && x.context === ctx;
+    }) : -1;
 
     var tags = (item.recipeData.tags_auto || []).slice();
     if(note) tags = tags.filter(function(t){ return !["excellent","bon","moyen","pas_aime"].includes(t); });
