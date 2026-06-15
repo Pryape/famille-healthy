@@ -155,6 +155,8 @@ body.sb-collapsed .page{margin-left:60px}
 .ptitle:hover{color:var(--gr)}
 .rtitle-btn{border:none;background:transparent;padding:0;font-size:14px;font-weight:500;color:var(--tx);cursor:pointer;text-align:left;font-family:"DM Sans",sans-serif;line-height:1.3;display:block}
 .rtitle-btn:hover{color:var(--gr)}
+.rating-btn{font-size:36px;background:transparent;border:2px solid transparent;border-radius:12px;cursor:pointer;padding:8px 10px;transition:transform .15s,border-color .15s}
+.rating-btn:hover{transform:scale(1.2);border-color:var(--gr)}
 </style>
 </head>
 <body>
@@ -287,6 +289,22 @@ body.sb-collapsed .page{margin-left:60px}
       <button class="btn btns btnsm" onclick="closeModal('convivesModal')">Annuler</button>
       <button class="btn btnp btnsm" style="flex:1" onclick="confirmConvives()" id="convivesConfirmBtn">Ajouter a ma semaine</button>
     </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL NOTATION ==================== -->
+<div class="mover" id="ratingModal">
+  <div class="modal" style="text-align:center;max-width:320px;margin:auto">
+    <div class="mhandle"></div>
+    <div style="font-family:Fraunces,Georgia,serif;font-size:18px;margin-bottom:6px">Comment etait ce repas ?</div>
+    <div style="font-size:13px;color:var(--tx2);margin-bottom:20px">La note sera ajoutee a l'historique</div>
+    <div style="display:flex;justify-content:center;gap:12px;margin-bottom:20px" id="ratingBtns">
+      <button class="rating-btn" data-note="excellent" data-emoji="😍" onclick="confirmRating('excellent','😍')" title="Excellent">😍</button>
+      <button class="rating-btn" data-note="bon" data-emoji="😊" onclick="confirmRating('bon','😊')" title="Bon">😊</button>
+      <button class="rating-btn" data-note="moyen" data-emoji="😐" onclick="confirmRating('moyen','😐')" title="Moyen">😐</button>
+      <button class="rating-btn" data-note="pas_aime" data-emoji="😞" onclick="confirmRating('pas_aime','😞')" title="Pas aime">😞</button>
+    </div>
+    <button class="btn btns btnsm" style="width:100%" onclick="confirmRating(null,null)">Passer sans noter</button>
   </div>
 </div>
 
@@ -1063,12 +1081,18 @@ function renderRecipes(){
     var convType = r.context==="converted" ? "ATP" : "Originale";
     var archived = !r.data; // donnees allegees
 
+    var noteHtml = r.emoji
+      ? '<span style="font-size:16px;margin-right:4px">'+r.emoji+'</span>'
+      : '';
     return '<div class="ritem">'+
       '<div class="rthumb">'+emoji+'</div>'+
       '<div class="rinfo">'+
-        '<button class="rtitle-btn" onclick="openHistoryRecette(\''+r.id+'\')">'+(r.source==="cooked"?'<span style="font-size:11px;color:var(--gr);font-weight:500;margin-right:6px">Cuisinee</span>':'')+esc(r.title||"Recette")+'</button>'+
-        '<div class="rmeta">'+nutriBadge(nutri)+' - '+convType+' - '+srcLabel+(date?' - '+date:'')+'</div>'+
-        '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">'+
+          '<button class="rtitle-btn" onclick="openHistoryRecette(\''+r.id+'\')">'+noteHtml+(r.source==="cooked"?'<span style="font-size:11px;color:var(--gr);font-weight:500;margin-right:4px">Cuisinee</span>':'')+esc(r.title||"Recette")+'</button>'+
+          '<button onclick="deleteRecipeFromHistory(\''+r.id+'\'" aria-label="Supprimer" style="border:none;background:transparent;cursor:pointer;color:var(--tx3);font-size:18px;flex-shrink:0;padding:0 2px;line-height:1" title="Supprimer de l&apos;historique">&times;</button>'+
+        '</div>'+
+        '<div class="rmeta">'+nutriBadge(nutri)+' - '+convType+(date?' - '+date:'')+' '+srcLabel+'</div>'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'+
           (archived
             ? '<button class="btn btnxs btno" onclick="reanalyzeRecipe(\''+r.id+'\')">Re-analyser</button>'
             : '<button class="btn btnxs btns" onclick="readdToPanier(\''+r.id+'\')">Ajouter au panier</button>')+
@@ -1572,35 +1596,70 @@ function retirerDuPanier(id){
   setPanier(p); scheduleSaveGeneric(); renderPanier();
 }
 
+var _pendingCuisineId = null;
+
 function marquerCuisine(id){
+  _pendingCuisineId = id;
+  openModal("ratingModal");
+}
+
+function confirmRating(note, emoji){
+  closeModal("ratingModal");
+  var id = _pendingCuisineId;
+  _pendingCuisineId = null;
+  if(!id) return;
+
   var panier = getPanier();
   var item = panier.find(function(p){ return p.id===id; });
   if(!item) return;
-  // Archiver dans recettes (source cooked)
+
+  // Archiver dans recettes avec deduplication et note
   if(item.recipeData){
     var recipes = getRecipes();
     var r = item.recipeData.recipe || {};
-    recipes.unshift({
-      id: "rec_"+Date.now(),
+    var url = r.original_url||"";
+    var ctx = item.converted?"converted":"original";
+
+    // Chercher un existant (meme url + meme contexte)
+    var existingIdx = recipes.findIndex(function(x){
+      return x.url === url && x.context === ctx;
+    });
+
+    var tags = (item.recipeData.tags_auto || []).slice();
+    if(note) tags = tags.filter(function(t){ return !["excellent","bon","moyen","pas_aime"].includes(t); });
+    if(note) tags.push(note);
+    if(emoji) tags.push(emoji);
+
+    var recipeEntry = {
+      id: existingIdx >= 0 ? recipes[existingIdx].id : "rec_"+Date.now(),
       title: r.title||"Recette",
-      url: r.original_url||"",
+      url: url,
       data: item.recipeData,
-      context: item.converted?"converted":"original",
+      context: ctx,
       source: "cooked",
+      note: note,
+      emoji: emoji,
       nutriscore: (item.recipeData.qualite_nutritionnelle&&item.recipeData.qualite_nutritionnelle.nutriscore)||"?",
+      tags: tags,
       cookedAt: new Date().toISOString(),
       savedAt: new Date().toISOString()
-    });
+    };
+
+    if(existingIdx >= 0){
+      recipes[existingIdx] = recipeEntry; // mise a jour
+    } else {
+      recipes.unshift(recipeEntry);
+    }
     setRecipes(recipes);
     trimRecipes();
   }
-  // Marquer cuisine (sort du panier actif)
+
   item.statut = "cuisine";
   item.cookedAt = new Date().toISOString();
   setPanier(panier);
   scheduleSaveGeneric();
   renderPanier();
-  toast("Repas cuisine ! Archive dans Recettes.");
+  toast("Repas cuisine !"+(emoji?" "+emoji:"")+" Archive dans Recettes.");
 }
 
 /* ---------- Generer liste de courses ---------- */
@@ -1745,6 +1804,15 @@ function reanalyzeRecipe(recipeId){
   var input = document.getElementById("urlInput");
   if(input) input.value = r.url||"";
   toast("URL chargee, cliquez Analyser");
+}
+
+function deleteRecipeFromHistory(recipeId){
+  if(!confirm("Supprimer cette recette de l\'historique ?")) return;
+  var recipes = getRecipes().filter(function(r){ return r.id !== recipeId; });
+  setRecipes(recipes);
+  scheduleSaveGeneric();
+  renderRecipes();
+  toast("Recette supprimee");
 }
 
 /* ---------- Famille ---------- */
