@@ -669,7 +669,7 @@ function updateSaveStatus(msg,color){
 /* ==================== GOOGLE AUTH ==================== */
 var GOOGLE_CLIENT_ID = "720651907355-e8dgab7ldtqgoo4evgvrbp8irnbaigat.apps.googleusercontent.com";
 function startGoogleAuth(){
-  var redirect = window.location.origin + window.location.pathname;
+  var redirect = window.location.origin + (window.location.pathname === "/" ? "" : window.location.pathname);
   var scope = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets";
   var url = "https://accounts.google.com/o/oauth2/v2/auth"+
     "?client_id="+encodeURIComponent(GOOGLE_CLIENT_ID)+
