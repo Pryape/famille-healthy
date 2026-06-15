@@ -1217,6 +1217,10 @@ async function startAnalysis(){
   var btn = document.getElementById("analyzeBtn");
   var result = document.getElementById("analyzeResult");
   if(btn){ btn.disabled = true; btn.textContent = "..."; }
+  // Vider et focus le champ URL pour faciliter la prochaine analyse
+  var urlField = document.getElementById("urlInput");
+  if(urlField){ urlField.value = ""; urlField.focus(); }
+
   if(result) result.innerHTML = '<div class="ldg"><div class="spin"></div>Analyse de la recette...</div>';
 
   try{
@@ -1525,8 +1529,12 @@ function confirmConvives(){
       addedAt: new Date().toISOString()
     });
     closeModal("convivesModal");
-    toast("Ajoute a ma semaine");
-    showPage("semaine");
+    toast("Ajoute a ma semaine !");
+    // Basculer vers Ma semaine seulement si on vient de la page Analyser
+    // Depuis Recettes, rester sur Recettes
+    var activePage = document.querySelector(".page.active");
+    var activeId = activePage ? activePage.id : "";
+    if(activeId === "page-analyze" || activeId === "") showPage("semaine");
   }
 }
 
