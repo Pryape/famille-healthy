@@ -717,11 +717,10 @@ function renderOriginalCard(d){
     '<div style="font-size:11px;font-weight:500;color:var(--tx2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Type</div>'+
     typeHtml+
     '<div style="display:flex;gap:0;padding:9px 0;border-top:1px solid var(--bd);border-bottom:1px solid var(--bd);margin-bottom:11px;text-align:center">'+
-      '<div style="flex:1"><div style="font-size:11px;color:var(--tx2);text-transform:uppercase">Total</div><div style="font-size:20px;font-weight:500;font-family:Fraunces,Georgia,serif">'+(d.kcal_total_recette||"-")+'</div><div style="font-size:11px;color:var(--tx2)">kcal</div></div>'+
+      (srv > 1 ? '<div style="flex:1"><div style="font-size:11px;color:var(--tx2);text-transform:uppercase">Total</div><div style="font-size:20px;font-weight:500;font-family:Fraunces,Georgia,serif">'+(d.kcal_total_recette||"-")+'</div><div style="font-size:11px;color:var(--tx2)">kcal</div></div><div style="width:1px;background:var(--bd)"></div>' : '')+
+      '<div style="flex:1"><div style="font-size:11px;color:var(--tx2);text-transform:uppercase">Par pers.</div><div style="font-size:20px;font-weight:500;font-family:Fraunces,Georgia,serif">'+(d.kcal_par_personne||"-")+'</div><div style="font-size:11px;color:var(--tx2)">'+(srv>1?srv+' portions':'kcal')+'</div></div>'+
       '<div style="width:1px;background:var(--bd)"></div>'+
-      '<div style="flex:1"><div style="font-size:11px;color:var(--tx2);text-transform:uppercase">Par pers.</div><div style="font-size:20px;font-weight:500;font-family:Fraunces,Georgia,serif">'+(d.kcal_par_personne||"-")+'</div><div style="font-size:11px;color:var(--tx2)">kcal</div></div>'+
-      '<div style="width:1px;background:var(--bd)"></div>'+
-      '<div style="flex:1"><div style="font-size:11px;color:var(--tx2);text-transform:uppercase">Ingred.</div><div style="font-size:20px;font-weight:500;font-family:Fraunces,Georgia,serif">'+((d.ingredients||[]).length)+'</div></div>'+
+      '<div style="flex:1"><div style="font-size:11px;color:var(--tx2);text-transform:uppercase">Ingred.</div><div style="font-size:20px;font-weight:500;font-family:Fraunces,Georgia,serif">'+(d.ingredients&&d.ingredients.length||0)+'</div><div style="font-size:11px;color:var(--tx2)"> </div></div>'+
     '</div>'+
     '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:13px">'+tagsHtml+'</div>'+
     (Object.keys(portionsData).length > 0 ?
@@ -1979,9 +1978,18 @@ function openSubsModal(){
 
   var servings = (convertedAnalysis && convertedAnalysis.recipe && convertedAnalysis.recipe.servings) || 5;
   var html = withSubs.map(function(ing, i){
+    // Retrouver la quantite originale depuis originalAnalysis
+    var origIngData = (originalAnalysis && originalAnalysis.ingredients || []).find(function(x){
+      return (x.nom||x.original||"").toLowerCase() === (ing.original||"").toLowerCase();
+    });
+    var origQty = origIngData ? (origIngData.quantite||origIngData.qty||0) : ing.sub_qty;
+    var origUnit = origIngData ? (origIngData.unite||origIngData.unit||"g") : ing.sub_unit;
+    // Calculer les kcal avec notre table fiable
+    var origKcalEst = estimateKcal(ing.original, origQty, origUnit);
+    var origKcal = origKcalEst !== null ? origKcalEst : (ing.orig_kcal_total||0);
     var subKcalEstimate = estimateKcal(ing.sub, ing.sub_qty, ing.sub_unit);
     var subKcal = subKcalEstimate !== null ? subKcalEstimate : (ing.sub_kcal_total||0);
-    var delta = (ing.orig_kcal_total||0) - subKcal;
+    var delta = origKcal - subKcal;
     var deltaPerPers = Math.round(delta / servings);
     // Afficher le gain PAR PERSONNE sur le badge principal
     var deltaHtml = deltaPerPers > 0
@@ -2007,7 +2015,7 @@ function openSubsModal(){
         // Recalculer les kcal de l alternative avec notre table fiable
         var estimatedKcal = estimateKcal(alt.nom, alt.qty, alt.unit);
         var altKcal = estimatedKcal !== null ? estimatedKcal : (alt.kcal_total||0);
-        var altDelta = (ing.orig_kcal_total||0) - altKcal;
+        var altDelta = origKcal - altKcal;
         var altPerPers = Math.round(altDelta / servings);
         var isSelected = alt.nom === ing.sub;
         var gainLabel = altPerPers > 0 ? '-'+altPerPers+'/p' : altPerPers < 0 ? '+'+Math.abs(altPerPers)+'/p' : '=';
