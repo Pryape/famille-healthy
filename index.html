@@ -1687,6 +1687,12 @@ async function genererListeCourses(){
   panier.forEach(function(meal){
     var data = meal.recipeData;
     var srv = (data.recipe&&data.recipe.servings)||1;
+    // Corriger le servings=1 errone: lire coversCount dans l'URL Jow
+    if(srv === 1 && data.recipe && data.recipe.original_url){
+      var ccMatch = data.recipe.original_url.match(/coversCount=(\d+)/);
+      if(ccMatch) srv = parseInt(ccMatch[1]);
+      else if(data.recipe.original_url.includes("jow.fr")) srv = 4;
+    }
     var ratio = (meal.convives.totalEquiv||1) / srv;
     (data.ingredients||[]).forEach(function(ing){
       if(ing.supprime) return;
