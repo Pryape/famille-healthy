@@ -849,11 +849,12 @@ function renderPanier(){
       var famNb = p.convives && p.convives.nbPersonnes || getFamille().length;
       var ratio = famNb / recipeServings;
       if(ratio <= 1.0){
-        servingsWarn = '<div class="srv-warn green">1 recette suffira pour '+famNb+' pers. ('+recipeServings+' pers. prevues)</div>';
+        servingsWarn = '<div class="srv-warn green">1 recette suffira pour '+famNb+' pers.</div>';
       } else if(ratio <= 1.3){
-        servingsWarn = '<div class="srv-warn orange">1 recette suffira (legerement juste pour '+famNb+' pers.)</div>';
+        servingsWarn = '<div class="srv-warn orange">Legerement juste pour '+famNb+' pers. (prevue pour '+recipeServings+')</div>';
       } else {
-        servingsWarn = '<div class="srv-warn red">Prevue pour '+recipeServings+' pers. — prevoir '+Math.ceil(ratio)+' pour '+famNb+' pers.</div>';
+        var nbRecettes = Math.ceil(ratio);
+        servingsWarn = '<div class="srv-warn red">Prevue pour '+recipeServings+' pers. → ajouter '+nbRecettes+'x au panier pour '+famNb+' pers. (ne pas utiliser les restes)</div>';
       }
     }
 
@@ -1709,12 +1710,8 @@ async function genererListeCourses(){
   panier.forEach(function(meal){
     var data = meal.recipeData;
     var srv = (data.recipe&&data.recipe.servings)||1;
-    // Le Worker Jow scrape avec coversCount=1 → quantités par personne → servings=1 toujours
-    // Si une recette Jow a servings>1 c'est une erreur Gemini, on force à 1
-    var url = (data.recipe&&data.recipe.original_url)||"";
-    if(srv > 1 && (url.includes("jow.fr") || data.recipe.source==="jow-api")){
-      srv = 1;
-    }
+    // Gemini detecte correctement le nb de portions (ex: tarte=4, plat individuel=1)
+    // Ne pas forcer servings=1 : la tarte a besoin de servings=4 pour calculer 1 rouleau
     var ratio = (meal.convives.totalEquiv||1) / srv;
     (data.ingredients||[]).forEach(function(ing){
       if(ing.supprime) return;
