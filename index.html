@@ -1700,8 +1700,13 @@ async function genererListeCourses(){
   panier.forEach(function(meal){
     var data = meal.recipeData;
     var srv = (data.recipe&&data.recipe.servings)||1;
-    // Gemini detecte correctement le nb de portions (ex: tarte=4, plat individuel=1)
-    // Ne pas forcer servings=1 : la tarte a besoin de servings=4 pour calculer 1 rouleau
+    var recUrl = (data.recipe&&data.recipe.original_url)||"";
+    var recTitle = (data.recipe&&data.recipe.title)||"";
+    var isJow = recUrl.indexOf("jow.fr")>=0 || (data.recipe&&data.recipe.source)==="jow-api";
+    // Recettes discretes (tarte, quiche...) : Jow retourne la recette entiere -> garder servings
+    // Recettes scalables (salade, pates...) : Jow retourne par personne -> forcer servings=1
+    var isDiscrete = /tarte|quiche|pizza|gateau|cake|gratin|tourte|flan|clafoutis/.test(recTitle.toLowerCase());
+    if(isJow && srv > 1 && !isDiscrete) srv = 1;
     var ratio = (meal.convives.totalEquiv||1) / srv;
     (data.ingredients||[]).forEach(function(ing){
       if(ing.supprime) return;
@@ -1718,7 +1723,7 @@ async function genererListeCourses(){
     var resp = await fetchTO(WORKER+"/sheets", {
       method:"POST",
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+state.googleToken},
-      body: JSON.stringify({ action:"addGrouped", ingredients:allIngredients })
+      body: JSON.stringify({ action:"addGrouped", ingredients:allIngredients, replace:true })
     });
     var result = await resp.json();
     if(checkTokenExpiry(result)) return;
