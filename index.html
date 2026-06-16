@@ -1574,29 +1574,7 @@ function confirmConvives(){
 }
 
 function addToPanier(item){
-  // Sauvegarder aussi dans les recettes (source "saved") pour accès futur
-  if(item.recipeData){
-    var recipes = getRecipes();
-    var r = item.recipeData.recipe || {};
-    var url = r.original_url||"";
-    var ctx = item.converted ? "converted" : "original";
-    // Anti-doublon strict
-    var exists = recipes.some(function(x){ return x.url===url && x.context===ctx && x.source==="saved"; });
-    if(!exists && url){
-      recipes.unshift({
-        id: "rec_"+Date.now(),
-        title: r.title||"Recette",
-        url: url,
-        data: item.recipeData,
-        context: ctx,
-        source: "saved",
-        nutriscore: (item.recipeData.qualite_nutritionnelle&&item.recipeData.qualite_nutritionnelle.nutriscore)||"?",
-        savedAt: new Date().toISOString()
-      });
-      setRecipes(recipes);
-      trimRecipes();
-    }
-  }
+  // Ne pas ajouter aux recettes ici — seulement via "Cuisiné" ou sauvegarde manuelle
   var p=getPanier(); p.push(item); setPanier(p); scheduleSaveGeneric();
 }
 
