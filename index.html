@@ -1687,7 +1687,12 @@ async function genererListeCourses(){
   panier.forEach(function(meal){
     var data = meal.recipeData;
     var srv = (data.recipe&&data.recipe.servings)||1;
-    // Note: le Worker Jow appelle toujours ?coversCount=1 → quantités par personne → servings=1 correct
+    // Le Worker Jow scrape avec coversCount=1 → quantités par personne → servings=1 toujours
+    // Si une recette Jow a servings>1 c'est une erreur Gemini, on force à 1
+    var url = (data.recipe&&data.recipe.original_url)||"";
+    if(srv > 1 && (url.includes("jow.fr") || data.recipe.source==="jow-api")){
+      srv = 1;
+    }
     var ratio = (meal.convives.totalEquiv||1) / srv;
     (data.ingredients||[]).forEach(function(ing){
       if(ing.supprime) return;
