@@ -161,6 +161,14 @@ body.sb-collapsed .page{margin-left:60px}
 .srv-warn.green{background:#f0fdf4;color:#166534}
 .srv-warn.orange{background:#fff7ed;color:#9a3412}
 .srv-warn.red{background:#fef2f2;color:#991b1b}
+.rcmt{display:flex;align-items:center;gap:6px;margin:4px 0;font-size:12px;color:var(--tx2);font-style:italic}
+.rcmt-text{flex:1}
+.rcmt-edit{border:none;background:transparent;cursor:pointer;font-size:12px;padding:0 2px;opacity:.6}
+.rcmt-edit:hover{opacity:1}
+.rcmt-add{border:none;background:transparent;cursor:pointer;font-size:11px;color:var(--tx3);padding:2px 0;text-decoration:underline;font-family:"DM Sans",sans-serif}
+.rcmt-add:hover{color:var(--gr)}
+.rcmt-input{width:100%;border:1px solid var(--bd);border-radius:6px;padding:6px 8px;font-size:12px;font-family:"DM Sans",sans-serif;resize:vertical;background:var(--sf);color:var(--tx);margin:4px 0 0}
+.rcmt-wrap{margin:4px 0}
 </style>
 </head>
 <body>
@@ -1107,6 +1115,9 @@ function renderRecipes(){
     var noteHtml = r.emoji
       ? '<span style="font-size:16px;margin-right:4px">'+r.emoji+'</span>'
       : '';
+    var commentHtml = r.comment
+      ? '<div class="rcmt" id="rcmt-'+r.id+'"><span class="rcmt-text">'+esc(r.comment)+'</span><button class="rcmt-edit" onclick="editComment(\''+r.id+'\')" title="Modifier">✏️</button></div>'
+      : '<button class="rcmt-add" onclick="editComment(\''+r.id+'\')" >+ Ajouter un commentaire</button>';
     return '<div class="ritem">'+
       '<div class="rthumb">'+emoji+'</div>'+
       '<div class="rinfo">'+
@@ -1115,6 +1126,7 @@ function renderRecipes(){
           '<button onclick="deleteRecipeFromHistory(\''+r.id+'\')" aria-label="Supprimer" style="border:none;background:transparent;cursor:pointer;color:var(--tx3);font-size:18px;flex-shrink:0;padding:0 2px;line-height:1" title="Supprimer de l&apos;historique">&times;</button>'+
         '</div>'+
         '<div class="rmeta">'+nutriBadge(nutri)+' - '+convType+(date?' - '+date:'')+' '+srcLabel+'</div>'+
+        commentHtml+
         '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'+
           (archived
             ? '<button class="btn btnxs btno" onclick="reanalyzeRecipe(\''+r.id+'\')">Re-analyser</button>'
@@ -1837,6 +1849,59 @@ function reanalyzeRecipe(recipeId){
   var input = document.getElementById("urlInput");
   if(input) input.value = r.url||"";
   toast("URL chargee, cliquez Analyser");
+}
+
+
+/* ---------- Commentaires recettes ---------- */
+function editComment(recipeId){
+  var r = getRecipes().find(function(x){ return x.id===recipeId; });
+  if(!r) return;
+  // Trouver l'element existant (div.rcmt ou button.rcmt-add) dans cette carte
+  var existing = document.getElementById("rcmt-"+recipeId);
+  if(!existing){
+    // Chercher le bouton "+ Ajouter" de cette carte
+    var allBtns = document.querySelectorAll(".rcmt-add");
+    allBtns.forEach(function(b){
+      if((b.getAttribute("onclick")||"").indexOf(recipeId)>=0) existing=b;
+    });
+  }
+  if(!existing) return;
+  // Remplacer par textarea + boutons
+  var wrap = document.createElement("div");
+  wrap.className = "rcmt-wrap";
+  var ta = document.createElement("textarea");
+  ta.className = "rcmt-input";
+  ta.value = r.comment || "";
+  ta.placeholder = "Votre avis, astuces, modifications...";
+  ta.rows = 2;
+  var acts = document.createElement("div");
+  acts.style.cssText = "display:flex;gap:6px;margin-top:4px";
+  function mkBtn(text, color, fn){
+    var b=document.createElement("button");
+    b.className="btn btnxs btns";
+    if(color) b.style.color=color;
+    b.textContent=text;
+    b.onclick=fn;
+    return b;
+  }
+  acts.appendChild(mkBtn("Sauvegarder","var(--gr)",function(){ saveComment(recipeId,ta.value); }));
+  acts.appendChild(mkBtn("Supprimer","var(--rd)",function(){ saveComment(recipeId,""); }));
+  acts.appendChild(mkBtn("Annuler","",function(){ renderRecipes(); }));
+  wrap.appendChild(ta);
+  wrap.appendChild(acts);
+  existing.replaceWith(wrap);
+  ta.focus();
+}
+
+function saveComment(recipeId, text){
+  var recipes = getRecipes();
+  var r = recipes.find(function(x){ return x.id===recipeId; });
+  if(!r) return;
+  r.comment = text.trim() || "";
+  setRecipes(recipes);
+  scheduleSaveGeneric();
+  renderRecipes();
+  toast(text.trim() ? "Commentaire sauvegarde" : "Commentaire supprime");
 }
 
 function deleteRecipeFromHistory(recipeId){
