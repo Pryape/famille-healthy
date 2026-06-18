@@ -170,6 +170,7 @@ body.sb-collapsed .page{margin-left:60px}
 .rcmt-input{width:100%;border:1px solid var(--bd);border-radius:6px;padding:6px 8px;font-size:12px;font-family:"DM Sans",sans-serif;resize:vertical;background:var(--sf);color:var(--tx);margin:4px 0 0}
 .rcmt-wrap{margin:4px 0}
 </style>
+<script src="https://apis.google.com/js/api.js"></script>
 </head>
 <body>
 
@@ -287,6 +288,17 @@ body.sb-collapsed .page{margin-left:60px}
     <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bd)">
       <div style="font-size:11px;font-weight:500;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Connexion & donnees</div>
       <div id="driveStatus"></div>
+    </div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bd)">
+      <div style="font-size:11px;font-weight:500;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Partage famille</div>
+      <div style="font-size:12px;color:var(--tx2);margin-bottom:12px">Permet a un autre compte Google d utiliser le meme panier et la meme liste de courses. Le compte principal partage ses fichiers, l autre compte les selectionne via le Picker.</div>
+      <div id="sharingStatus" style="font-size:12px;margin-bottom:12px"></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btns btnsm" onclick="pickSharedFile()">📂 Choisir le fichier famille partage</button>
+        <button class="btn btns btnsm" onclick="pickSharedSheet()">📊 Choisir le Sheet de courses partage</button>
+        <button class="btn btnxs btns" style="color:var(--rd)" onclick="clearSharedIds()">Deconnecter le partage</button>
+      </div>
+      <div id="sharedIdsInfo" style="margin-top:12px;font-size:12px"></div>
     </div>
   </div>
 </div>
@@ -409,6 +421,126 @@ function getPanier(){
   if(state.panier && Array.isArray(state.panier)) return state.panier;
   try{ var s=JSON.parse(localStorage.getItem("fh_panier")||"[]"); return Array.isArray(s)?s:[]; }catch(e){ return []; }
 }
+
+/* ---------- Partage famille (Drive/Sheet partage entre comptes) ---------- */
+function getSharedFileId(){ return (state.config && state.config.sharedFileId) || ""; }
+function getSharedSheetId(){ return (state.config && state.config.sharedSheetId) || ""; }
+function driveBody(extra){
+  var b = Object.assign({}, extra);
+  var sfid = getSharedFileId();
+  if(sfid) b.sharedFileId = sfid;
+  return JSON.stringify(b);
+}
+function sheetsBody(extra){
+  var b = Object.assign({}, extra);
+  var ssid = getSharedSheetId();
+  if(ssid) b.sharedSheetId = ssid;
+  return JSON.stringify(b);
+}
+
+
+var PICKER_API_KEY = "AIzaSyCsdWDb4zQq2LoZgpwQmGHrTkULmBjRYbo";
+var pickerLoaded = false;
+
+function loadPickerApi(cb){
+  if(pickerLoaded){ cb(); return; }
+  gapi.load("picker", function(){ pickerLoaded = true; cb(); });
+}
+
+function openPicker(mimeType, title, onPicked){
+  if(!state.googleToken){ toast("Connectez-vous d abord a Google"); return; }
+  loadPickerApi(function(){
+    var view = new google.picker.DocsView()
+      .setMimeTypes(mimeType)
+      .setIncludeFolders(false);
+    // Afficher aussi les fichiers partages avec ce compte
+    var sharedView = new google.picker.DocsView()
+      .setMimeTypes(mimeType)
+      .setEnableTeamDrives(true)
+      .setIncludeFolders(false);
+    sharedView.setOwnedByMe(false); // "Partagés avec moi"
+    var picker = new google.picker.PickerBuilder()
+      .setTitle(title)
+      .setOAuthToken(state.googleToken)
+      .setDeveloperKey(PICKER_API_KEY)
+      .setAppId("720651907355")
+      .addView(view)
+      .addView(sharedView)
+      .setCallback(function(data){
+        if(data.action === google.picker.Action.PICKED){
+          var doc = data.docs[0];
+          onPicked(doc.id, doc.name);
+        }
+      })
+      .build();
+    picker.setVisible(true);
+  });
+}
+
+function pickSharedFile(){
+  openPicker(
+    "application/json",
+    "Choisir le fichier famille partage",
+    function(fileId, name){
+      var cfg = getConfig();
+      cfg.sharedFileId = fileId;
+      setConfig(cfg);
+      toast("Fichier famille configure : "+name);
+      renderSharedIdsInfo();
+      // Recharger les donnees depuis ce fichier partage
+      loadDriveData();
+    }
+  );
+}
+
+function pickSharedSheet(){
+  openPicker(
+    "application/vnd.google-apps.spreadsheet",
+    "Choisir le Sheet de courses partage",
+    function(fileId, name){
+      var cfg = getConfig();
+      cfg.sharedSheetId = fileId;
+      setConfig(cfg);
+      toast("Sheet configure : "+name);
+      renderSharedIdsInfo();
+    }
+  );
+}
+
+function clearSharedIds(){
+  var cfg = getConfig();
+  delete cfg.sharedFileId;
+  delete cfg.sharedSheetId;
+  setConfig(cfg);
+  toast("Partage deconnecte - ce compte utilise son propre espace");
+  renderSharedIdsInfo();
+}
+
+function renderSharedIdsInputs(){
+  renderSharedIdsInfo();
+}
+
+function renderSharedIdsInfo(){
+  var cfg = getConfig();
+  var fid = cfg.sharedFileId || "";
+  var sid = cfg.sharedSheetId || "";
+  var infoEl = document.getElementById("sharedIdsInfo");
+  var statusEl = document.getElementById("sharingStatus");
+  if(statusEl){
+    if(fid || sid){
+      statusEl.innerHTML = "<span style='color:var(--gr);font-weight:500'>✓ Partage actif</span> — ce compte utilise des fichiers partages";
+    } else {
+      statusEl.innerHTML = "<span style='color:var(--tx3)'>Aucun partage configure — ce compte utilise son propre espace Drive</span>";
+    }
+  }
+  if(infoEl){
+    var lines = [];
+    if(fid) lines.push("Fichier famille : "+esc(fid.slice(0,20))+"...");
+    if(sid) lines.push("Sheet courses : "+esc(sid.slice(0,20))+"...");
+    infoEl.innerHTML = lines.length ? "<div style='color:var(--tx2)'>"+lines.join("<br>")+"</div>" : "";
+  }
+}
+
 function getConfig(){
   if(state.config) return state.config;
   try{ var s=JSON.parse(localStorage.getItem("fh_config")||"null"); if(s) return s; }catch(e){}
@@ -633,7 +765,7 @@ async function loadFromDrive(){
     var resp = await fetchTO(WORKER+"/drive", {
       method:"POST",
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+state.googleToken},
-      body: JSON.stringify({action:"read"})
+      body: driveBody({action:"read"})
     });
     if(resp.status === 401){ handleTokenExpiry(); state.driveLoaded=true; renderAll(); return; }
     var data = await resp.json();
@@ -669,12 +801,14 @@ async function saveToDrive(){
   var resp = await fetchTO(WORKER+"/drive", {
     method:"POST",
     headers:{"Content-Type":"application/json","Authorization":"Bearer "+state.googleToken},
-    body: JSON.stringify({action:"write", data:payload})
+    body: driveBody({action:"write", data:payload})
   });
   if(resp.status === 401){ handleTokenExpiry(); throw new Error("token_expired"); }
   var result = await resp.json();
   if(checkTokenExpiry(result)) throw new Error("token_expired");
   if(result.error) throw new Error(result.error);
+  // Capturer le fileId reel (utile pour le partage famille)
+  if(result.fileId){ state.actualFileId = result.fileId; renderCurrentIdsDisplay(); }
   return result;
 }
 
@@ -757,7 +891,7 @@ function showPage(id){
   if(nv) nv.classList.add("active");
   if(id==="semaine") renderPanier();
   if(id==="recipes") renderRecipes();
-  if(id==="famille"){ renderFamille(); renderDriveStatus(); }
+  if(id==="famille"){ renderFamille(); renderDriveStatus(); renderSharedIdsInputs(); }
 }
 
 function renderAll(){
@@ -1767,7 +1901,7 @@ async function genererListeCourses(){
     var resp = await fetchTO(WORKER+"/sheets", {
       method:"POST",
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+state.googleToken},
-      body: JSON.stringify({ action:"addGrouped", ingredients:allIngredients, replace:true })
+      body: sheetsBody({ action:"addGrouped", ingredients:allIngredients, replace:true })
     });
     var result = await resp.json();
     if(checkTokenExpiry(result)) return;
@@ -1783,6 +1917,10 @@ async function genererListeCourses(){
       renderPanier();
       if(statusEl){ statusEl.textContent="Liste generee ! "+allIngredients.length+" ingredients ajoutes."; statusEl.style.color="var(--gr)"; }
       if(result.sheetUrl && linkEl){ linkEl.href=result.sheetUrl; linkEl.style.display="block"; }
+      if(result.sheetUrl){
+        var sidMatch = result.sheetUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+        if(sidMatch){ state.actualSheetId = sidMatch[1]; renderCurrentIdsDisplay(); }
+      }
     } else {
       if(statusEl){ statusEl.textContent="Erreur: "+(result.error||"inconnue"); statusEl.style.color="var(--rd)"; }
     }
@@ -1807,7 +1945,7 @@ async function nouvelleSemaine(){
       var resp = await fetchTO(WORKER+"/sheets", {
         method:"POST",
         headers:{"Content-Type":"application/json","Authorization":"Bearer "+state.googleToken},
-        body: JSON.stringify({ action:"flushChecked" })
+        body: sheetsBody({ action:"flushChecked" })
       });
       var result = await resp.json();
       if(checkTokenExpiry(result)) return;
@@ -1967,7 +2105,7 @@ window.addEventListener("beforeunload", function(e){
   if(state.dirty && tokenValid()){
     // Tentative de sauvegarde synchrone via sendBeacon (best effort)
     try{
-      var payload = JSON.stringify({
+      var payload = driveBody({
         action:"write",
         data:{ version:SCHEMA_VERSION, updatedAt:new Date().toISOString(),
                famille:state.famille||getFamille(), recipes:state.recipes||getRecipes(),
