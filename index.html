@@ -1604,11 +1604,8 @@ function confirmConvives(){
     });
     closeModal("convivesModal");
     toast("Ajoute a ma semaine !");
-    // Basculer vers Ma semaine seulement si on vient de la page Analyser
-    // Depuis Recettes, rester sur Recettes
-    var activePage = document.querySelector(".page.active");
-    var activeId = activePage ? activePage.id : "";
-    if(activeId === "page-analyze" || activeId === "") showPage("semaine");
+    // Toujours rester sur la page active (ne jamais basculer automatiquement)
+    // Permet d'ajouter plusieurs recettes a la suite depuis Analyser sans interruption
   }
 }
 
