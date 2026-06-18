@@ -808,7 +808,7 @@ async function saveToDrive(){
   if(checkTokenExpiry(result)) throw new Error("token_expired");
   if(result.error) throw new Error(result.error);
   // Capturer le fileId reel (utile pour le partage famille)
-  if(result.fileId){ state.actualFileId = result.fileId; renderCurrentIdsDisplay(); }
+  if(result.fileId){ state.actualFileId = result.fileId; }
   return result;
 }
 
@@ -1919,7 +1919,7 @@ async function genererListeCourses(){
       if(result.sheetUrl && linkEl){ linkEl.href=result.sheetUrl; linkEl.style.display="block"; }
       if(result.sheetUrl){
         var sidMatch = result.sheetUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-        if(sidMatch){ state.actualSheetId = sidMatch[1]; renderCurrentIdsDisplay(); }
+        if(sidMatch){ state.actualSheetId = sidMatch[1]; }
       }
     } else {
       if(statusEl){ statusEl.textContent="Erreur: "+(result.error||"inconnue"); statusEl.style.color="var(--rd)"; }
