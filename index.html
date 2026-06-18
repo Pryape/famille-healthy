@@ -220,7 +220,7 @@ body.sb-collapsed .page{margin-left:60px}
       <div id="panierStatus" style="font-size:12px;margin-top:10px;text-align:center"></div>
       <a id="sheetLink" href="#" target="_blank" class="btn btno btnsm" style="display:none;margin-top:8px;width:100%;text-decoration:none">Ouvrir le Google Sheet</a>
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--bd)">
-        <button class="btn btns btnsm" style="width:100%;color:var(--rd)" onclick="nouvelleSemaine()">Nouvelle semaine (archiver les cuisines)</button>
+        <button class="btn btns btnsm" style="width:100%;color:var(--rd)" onclick="nouvelleSemaine()">Archiver les recettes cuisinées et vider les courses faites</button>
         <div id="flushStatus" style="font-size:12px;margin-top:8px;text-align:center"></div>
       </div>
     </div>
@@ -785,7 +785,7 @@ function recipeEmoji(data){
 var STATUTS = {
   a_prevoir:      {label:"A prevoir",      color:"#6B7280", bg:"#F3F4F6"},
   courses_faites: {label:"Courses commandees", color:"#1D4ED8", bg:"#EFF6FF"},
-  cuisine:        {label:"Cuisine",        color:"#166534", bg:"#F0FDF4"}
+  cuisine:        {label:"Cuisiné",        color:"#166534", bg:"#F0FDF4"}
 };
 
 var JOURS = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
@@ -884,7 +884,7 @@ function renderPanier(){
             '<span style="width:6px;height:6px;border-radius:50%;background:'+st.color+'"></span>'+st.label+'</span>'+
         '</div>'+
         // Actions
-        '<button class="btn btnsm" style="background:var(--gr);color:#fff;border:none;flex-shrink:0" onclick="marquerCuisine(\''+p.id+'\')">Cuisine</button>'+
+        '<button class="btn btnsm" style="background:var(--gr);color:#fff;border:none;flex-shrink:0" onclick="marquerCuisine(\''+p.id+'\')">Cuisiné</button>'+
         '<div class="pmenu-wrap" style="flex-shrink:0">'+
           '<button class="pmenu-btn" onclick="togglePMenu(\''+p.id+'\',event)" aria-label="Plus d\'options">'+
             '<svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>'+
@@ -902,7 +902,7 @@ function renderPanier(){
 }
 
 /* ---------- PAGE ANALYSER : fiche recette ---------- */
-function renderRecipeCard(data, mode){
+function renderRecipeCard(data, mode, presentNames){
   // mode: "original" | "converted"
   var r = data.recipe || {};
   var srv = r.servings || 1;
@@ -941,7 +941,7 @@ function renderRecipeCard(data, mode){
   '</div>';
 
   // Portions famille
-  var portionsHtml = renderPortionsTable(data);
+  var portionsHtml = renderPortionsTable(data, presentNames);
 
   // Source badge (Jow precis vs web estime)
   var srcBadge = "";
@@ -1042,7 +1042,7 @@ function renderRecipeCard(data, mode){
   '</div>';
 }
 
-function renderPortionsTable(data){
+function renderPortionsTable(data, presentNames){
   var kcalPP = data.kcal_par_personne || data.kcal_par_personne_apres || 0;
   var srv = (data.recipe && data.recipe.servings) || 1;
   var baseWeight = calcPortionWeight(data.ingredients, 1, srv);
@@ -1056,7 +1056,11 @@ function renderPortionsTable(data){
 
   var pctBar = Math.min(Math.round(kcalPP/REF_KCAL*100), 100);
 
-  var rows = getFamille().map(function(m){
+  var famList = getFamille();
+  if(Array.isArray(presentNames) && presentNames.length){
+    famList = famList.filter(function(m){ return presentNames.indexOf(m.name) >= 0; });
+  }
+  var rows = famList.map(function(m){
     var grammage = Math.round(baseWeight * tkcal(m) / REF_KCAL);
     var kcalServed = Math.round(grammage * kcalPP / baseWeight);
     var pctDay = tkcal(m)>0 ? Math.round(kcalServed/tkcal(m)*100) : 0;
@@ -1070,11 +1074,16 @@ function renderPortionsTable(data){
     '</tr>';
   }).join("");
 
+  var filterNote = (Array.isArray(presentNames) && presentNames.length && presentNames.length < getFamille().length)
+    ? '<div style="font-size:11px;color:var(--tx3);margin-bottom:6px">Portions calculees pour les presents uniquement</div>'
+    : '';
+
   return '<div style="margin:8px 0">'+
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
       '<div style="flex:1"><div class="pbar"><div class="pfill" style="width:'+pctBar+'%;background:var(--gr)"></div></div></div>'+
       '<span style="font-size:12px;color:var(--tx2);white-space:nowrap">'+(kcalPP||"-")+' kcal - '+Math.round(kcalPP/REF_KCAL*100)+'% ref. adulte</span>'+
     '</div>'+
+    filterNote+
     '<table class="itbl"><thead><tr><th></th><th>Membre</th><th style="text-align:right">Portion</th><th style="text-align:right">Prot.</th></tr></thead>'+
     '<tbody>'+rows+'</tbody></table>'+
   '</div>';
@@ -1337,7 +1346,7 @@ function openPanierRecette(panierId){
     '<div style="font-family:Fraunces,Georgia,serif;font-size:20px;font-weight:500;line-height:1.2;margin-bottom:4px">'+esc(r.title||"Recette")+'</div>'+
     '<div style="font-size:12px;color:var(--tx2)">'+esc(r.cuisine||"")+(r.prep?" · "+esc(r.prep):"")+(r.cook?" · "+esc(r.cook):"")+'</div>'+
     srcLink+
-    '<div style="margin-top:14px">'+renderRecipeCard(data, mode)+'</div>';
+    '<div style="margin-top:14px">'+renderRecipeCard(data, mode, item.convives&&item.convives.presentNames)+'</div>';
 
   openModal("recipeModal");
 }
@@ -1453,6 +1462,25 @@ function trimRecipes(aggressive){
 
 function scheduleSaveGeneric(){ scheduleSave(true); }
 
+
+/* ---------- Figer les substitutions (cases decochees) avant sauvegarde ---------- */
+function freezeSubstitutions(data){
+  if(!data || !Array.isArray(data.ingredients)) return data;
+  // Copie profonde pour ne pas modifier l'objet affiche dans la fiche en cours
+  var frozen = JSON.parse(JSON.stringify(data));
+  frozen.ingredients.forEach(function(ing){
+    if(ing._disabled){
+      // L'utilisateur a decoche cette substitution -> revenir a l'original
+      // On vide les champs "sub" pour que le calcul utilise l'original (ing.original/ing.nom)
+      ing.sub = null;
+      ing.sub_qty = ing.quantite || ing.sub_qty;
+      ing.sub_unit = ing.unite || ing.sub_unit;
+      delete ing._disabled;
+    }
+  });
+  return frozen;
+}
+
 /* ---------- Convives (qui mange) ---------- */
 var convivesCtx = { editId:null, converted:false };
 
@@ -1554,9 +1582,11 @@ function confirmConvives(){
     // Ajout
     var data = convivesCtx.converted ? state.currentConverted : state.currentAnalysis;
     if(!data){ toast("Erreur: pas de recette"); return; }
+    // Figer l'etat des substitutions (cases decochees) avant de sauvegarder dans le panier
+    var frozenData = freezeSubstitutions(data);
     addToPanier({
       id: "meal_"+Date.now(),
-      recipeData: data,
+      recipeData: frozenData,
       converted: convivesCtx.converted,
       convives: { presentNames:c.presentNames, leftoverNames:c.leftoverNames, guests:c.guests, totalEquiv:c.totalEquiv, nbPersonnes:c.nbPersonnes, label:c.label },
       statut: "a_prevoir",
@@ -1708,6 +1738,12 @@ async function genererListeCourses(){
     var isDiscrete = /tarte|quiche|pizza|gateau|cake|gratin|tourte|flan|clafoutis/.test(recTitle.toLowerCase());
     if(isJow && srv > 1 && !isDiscrete) srv = 1;
     var ratio = (meal.convives.totalEquiv||1) / srv;
+    if(isDiscrete){
+      // Recette discrete (tarte, quiche...) : on fait 1, 2, 3... recettes ENTIERES, jamais une fraction.
+      // Si vous etes moins nombreux que prevu (ratio<1), on fait quand meme 1 recette complete.
+      // Si vous etes plus nombreux (ratio>1), on arrondit au nombre entier de recettes superieur.
+      ratio = Math.max(1, Math.round(ratio));
+    }
     (data.ingredients||[]).forEach(function(ing){
       if(ing.supprime) return;
       var nom = ing.sub || ing.nom || ing.original || "";
