@@ -1471,10 +1471,19 @@ function freezeSubstitutions(data){
   frozen.ingredients.forEach(function(ing){
     if(ing._disabled){
       // L'utilisateur a decoche cette substitution -> revenir a l'original
-      // On vide les champs "sub" pour que le calcul utilise l'original (ing.original/ing.nom)
       ing.sub = null;
-      ing.sub_qty = ing.quantite || ing.sub_qty;
-      ing.sub_unit = ing.unite || ing.sub_unit;
+      // Utiliser la quantite ORIGINALE explicite (original_qty/original_unit).
+      // Si absente (ancienne recette generee avant ce champ), NE PAS retomber sur sub_qty
+      // (qui est la quantite du SUBSTITUT, pas de l'original) -> ce serait incoherent.
+      if(ing.original_qty !== undefined && ing.original_qty !== null){
+        ing.sub_qty = ing.original_qty;
+        ing.sub_unit = ing.original_unit || ing.sub_unit;
+      } else {
+        // Fallback prudent: pas de quantite originale fiable disponible.
+        // On garde la quantite du substitut plutot que d'inventer une valeur fausse,
+        // et on previent l'utilisateur via la console (debug) sans casser l'app.
+        console.warn("freezeSubstitutions: original_qty manquant pour", ing.original||ing.nom, "- quantite peut etre incorrecte, re-analysez la recette");
+      }
       delete ing._disabled;
     }
   });
