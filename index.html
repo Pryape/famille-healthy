@@ -1718,7 +1718,9 @@ async function genererListeCourses(){
   if(!tokenValid()){ handleTokenExpiry(); return; }
   var statusEl = document.getElementById("panierStatus");
   var linkEl = document.getElementById("sheetLink");
-  var panier = getPanier().filter(function(p){ return p.statut === "a_prevoir"; });
+  // Inclure "a_prevoir" ET "courses_faites" (deja commandees mais pas encore cuisinees)
+  // Seul "cuisine" (deja prepare) est exclu du recalcul de la liste
+  var panier = getPanier().filter(function(p){ return p.statut !== "cuisine"; });
   if(panier.length === 0){
     if(statusEl){ statusEl.textContent="Aucun repas a prevoir"; statusEl.style.color="var(--tx2)"; }
     return;
@@ -1759,7 +1761,7 @@ async function genererListeCourses(){
     var resp = await fetchTO(WORKER+"/sheets", {
       method:"POST",
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+state.googleToken},
-      body: JSON.stringify({ action:"addGrouped", ingredients:allIngredients, replace:true })
+      body: JSON.stringify({ action:"addGrouped", ingredients:allIngredients, replace:false })
     });
     var result = await resp.json();
     if(checkTokenExpiry(result)) return;
