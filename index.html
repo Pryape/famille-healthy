@@ -1761,7 +1761,7 @@ async function genererListeCourses(){
     var resp = await fetchTO(WORKER+"/sheets", {
       method:"POST",
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+state.googleToken},
-      body: JSON.stringify({ action:"addGrouped", ingredients:allIngredients, replace:false })
+      body: JSON.stringify({ action:"addGrouped", ingredients:allIngredients, replace:true })
     });
     var result = await resp.json();
     if(checkTokenExpiry(result)) return;
