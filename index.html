@@ -268,6 +268,11 @@ body.sb-collapsed .page{margin-left:60px}
       <button class="stab" onclick="filterRecipes('saved', this)">Sauvegardees</button>
       <button class="stab" onclick="filterRecipes('cooked', this)">Cuisinees</button>
     </div>
+    <div style="margin:10px 0">
+      <input type="text" id="recipeSearchInput" placeholder="Rechercher par nom, ingredient, tag..." oninput="renderRecipes()" style="width:100%;padding:9px 12px;border:1px solid var(--bd);border-radius:10px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--sf)">
+    </div>
+    <div id="recipeTagFilters" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+    <div id="recipeEmojiFilters" style="display:flex;gap:6px;margin-bottom:12px"></div>
     <div id="recipesList"></div>
   </div>
 </div>
@@ -1231,19 +1236,77 @@ function filterRecipes(filter, btn){
   renderRecipes();
 }
 
+var EMOJI_LEVELS = ["😍","😊","😐","😞"];
+
+function getRecipeTags(r){
+  return (r.data && (r.data.tags_auto || r.data.tags)) || [];
+}
+
+function renderRecipeFilters(recipes){
+  // Tags disponibles (union de tous les tags presents)
+  var tagSet = {};
+  recipes.forEach(function(r){ getRecipeTags(r).forEach(function(t){ tagSet[t]=true; }); });
+  var tags = Object.keys(tagSet).sort();
+
+  var tagEl = document.getElementById("recipeTagFilters");
+  if(tagEl){
+    if(!tags.length){ tagEl.innerHTML=""; }
+    else {
+      tagEl.innerHTML = tags.map(function(t){
+        var active = state.recipeTagFilter === t;
+        return '<button class="tagchip'+(active?' active':'')+'" onclick="toggleTagFilter(\''+t+'\')" style="font-size:11px;padding:4px 10px;border-radius:99px;border:1px solid '+(active?'var(--gr)':'var(--bd)')+';background:'+(active?'var(--gr)':'transparent')+';color:'+(active?'#fff':'var(--tx2)')+';cursor:pointer">'+esc(t)+'</button>';
+      }).join("");
+    }
+  }
+
+  var emojiEl = document.getElementById("recipeEmojiFilters");
+  if(emojiEl){
+    var usedEmojis = EMOJI_LEVELS.filter(function(e){ return recipes.some(function(r){ return r.emoji===e; }); });
+    if(!usedEmojis.length){ emojiEl.innerHTML=""; }
+    else {
+      emojiEl.innerHTML = '<span style="font-size:11px;color:var(--tx3);align-self:center;margin-right:2px">Note:</span>'+usedEmojis.map(function(e){
+        var active = state.recipeEmojiFilter === e;
+        return '<button onclick="toggleEmojiFilter(\''+e+'\')" style="font-size:18px;padding:2px 8px;border-radius:8px;border:1px solid '+(active?'var(--gr)':'transparent')+';background:'+(active?'var(--sf2)':'transparent')+';cursor:pointer;opacity:'+(active?'1':'.5')+'">'+e+'</button>';
+      }).join("");
+    }
+  }
+}
+
+function toggleTagFilter(t){
+  state.recipeTagFilter = (state.recipeTagFilter===t) ? null : t;
+  renderRecipes();
+}
+function toggleEmojiFilter(e){
+  state.recipeEmojiFilter = (state.recipeEmojiFilter===e) ? null : e;
+  renderRecipes();
+}
+
 function renderRecipes(){
   var container = document.getElementById("recipesList");
   if(!container) return;
   var recipes = getRecipes();
   var f = state.recipeFilter;
+  var searchEl = document.getElementById("recipeSearchInput");
+  var searchTerm = (searchEl ? searchEl.value : "").toLowerCase().trim();
+
+  renderRecipeFilters(recipes);
+
   var filtered = recipes.filter(function(r){
-    if(f==="saved") return r.source==="saved";
-    if(f==="cooked") return r.source==="cooked";
+    if(f==="saved" && r.source!=="saved") return false;
+    if(f==="cooked" && r.source!=="cooked") return false;
+    if(state.recipeTagFilter && getRecipeTags(r).indexOf(state.recipeTagFilter)<0) return false;
+    if(state.recipeEmojiFilter && r.emoji!==state.recipeEmojiFilter) return false;
+    if(searchTerm){
+      var haystack = (r.title||"").toLowerCase()+" "+(r.comment||"").toLowerCase()+" "+
+        getRecipeTags(r).join(" ").toLowerCase()+" "+
+        ((r.data&&r.data.ingredients)||[]).map(function(i){ return (i.sub||i.nom||i.original||""); }).join(" ").toLowerCase();
+      if(haystack.indexOf(searchTerm)<0) return false;
+    }
     return true;
   });
 
   if(filtered.length === 0){
-    container.innerHTML = '<div class="empty">Aucune recette '+(f==="saved"?"sauvegardee":f==="cooked"?"cuisinee":"")+'.</div>';
+    container.innerHTML = '<div class="empty">Aucune recette trouvee.</div>';
     return;
   }
 
