@@ -2027,7 +2027,6 @@ function openHistoryRecette(recipeId){
   var r = getRecipes().find(function(x){ return x.id===recipeId; });
   if(!r){ toast("Recette introuvable"); return; }
   if(!r.data){
-    // Donnees allegees - proposer re-analyse
     if(r.url && confirm("Les donnees completes de cette recette ont ete allégées pour économiser de l\'espace. Voulez-vous la re-analyser ?")){
       reanalyzeRecipe(recipeId);
     }
@@ -2035,6 +2034,14 @@ function openHistoryRecette(recipeId){
   }
   var data = r.data;
   var mode = r.context === "converted" ? "converted" : "original";
+  // Mettre a jour le state pour que "Ajouter a ma semaine" dans la fiche ajoute LA BONNE recette
+  if(mode === "converted"){
+    state.currentConverted = data;
+    state.currentAnalysis = null;
+  } else {
+    state.currentAnalysis = data;
+    state.currentConverted = null;
+  }
   var el = document.getElementById("recipeModalContent");
   if(!el) return;
 
