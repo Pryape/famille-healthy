@@ -1786,7 +1786,9 @@ function confirmConvives(){
     toast("Modifie");
   } else {
     // Ajout
-    var data = convivesCtx.converted ? state.currentConverted : state.currentAnalysis;
+    // Priorite a directData (ajout depuis liste recettes) pour eviter collisions de state
+    var data = convivesCtx.directData ||
+               (convivesCtx.converted ? state.currentConverted : state.currentAnalysis);
     if(!data){ toast("Erreur: pas de recette"); return; }
     // Figer l'etat des substitutions (cases decochees) avant de sauvegarder dans le panier
     var frozenData = freezeSubstitutions(data);
@@ -2070,9 +2072,8 @@ function openHistoryRecette(recipeId){
 function readdToPanier(recipeId){
   var r = getRecipes().find(function(x){ return x.id===recipeId; });
   if(!r || !r.data){ toast("Donnees indisponibles, re-analysez"); return; }
-  state.currentAnalysis = r.context==="converted" ? null : r.data;
-  state.currentConverted = r.context==="converted" ? r.data : null;
-  convivesCtx = { editId:null, converted: r.context==="converted" };
+  // Stocker directement la data dans convivesCtx pour eviter les collisions avec state.currentAnalysis
+  convivesCtx = { editId:null, converted: r.context==="converted", directData: r.data };
   renderConvivesModal(null);
   openModal("convivesModal");
 }
